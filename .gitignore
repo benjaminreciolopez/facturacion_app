@@ -4,7 +4,6 @@ __pycache__/
 
 # Virtual env
 venv/
-.env
 .env.local
 
 # Base de datos local
@@ -14,3 +13,7 @@ venv/
 # IDE
 .vscode/
 .idea/
+.env
+.env.*
+app/static/uploads/
+facturas_pdf/
