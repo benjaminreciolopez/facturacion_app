@@ -1,0 +1,760 @@
+{% extends "base.html" %} {% block content %}
+
+<h2 class="text-2xl font-bold mb-6">Datos del Emisor</h2>
+
+<style>
+  .tab-btn {
+    padding: 10px 18px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .tab-btn.active {
+    border-color: #2563eb;
+    color: #2563eb;
+  }
+  .tab-content {
+    display: none;
+  }
+  .tab-content.active {
+    display: block;
+  }
+</style>
+
+<!-- TABS -->
+<div class="flex space-x-6 mb-6 border-b pb-2">
+  <div class="tab-btn active" data-tab="general">Generales</div>
+  <div class="tab-btn" data-tab="logo">Logo</div>
+  <div class="tab-btn" data-tab="textos">Textos legales</div>
+  <div class="tab-btn" data-tab="cert">Certificado digital</div>
+  <div class="tab-btn" data-tab="pdf">PDF</div>
+  <div class="tab-btn" data-tab="seguridad">Seguridad</div>
+  <div class="tab-btn" data-tab="numeracion">Numeración</div>
+</div>
+
+<!-- ===================================================== -->
+<!-- TAB 1: DATOS GENERALES -->
+<!-- ===================================================== -->
+<div id="tab-general" class="tab-content active">
+  <form method="post" action="/configuracion/emisor/save" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="font-semibold">Nombre o Razón Social</label>
+        <input
+          name="nombre"
+          value="{{ emisor.nombre or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">NIF</label>
+        <input name="nif" value="{{ emisor.nif or '' }}" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Dirección</label>
+        <input
+          name="direccion"
+          value="{{ emisor.direccion or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Población</label>
+        <input
+          name="poblacion"
+          value="{{ emisor.poblacion or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Provincia</label>
+        <input
+          name="provincia"
+          value="{{ emisor.provincia or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Código Postal</label>
+        <input name="cp" value="{{ emisor.cp or '' }}" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">País</label>
+        <input
+          name="pais"
+          value="{{ emisor.pais or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Teléfono</label>
+        <input
+          name="telefono"
+          value="{{ emisor.telefono or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Email</label>
+        <input
+          name="email"
+          value="{{ emisor.email or '' }}"
+          class="form-control"
+        />
+      </div>
+
+      <div>
+        <label class="font-semibold">Web</label>
+        <input name="web" value="{{ emisor.web or '' }}" class="form-control" />
+      </div>
+    </div>
+
+    <button class="btn btn-primary mt-4">Guardar</button>
+  </form>
+</div>
+
+<!-- ===================================================== -->
+<!-- TAB 2: LOGO -->
+<!-- ===================================================== -->
+<div id="tab-logo" class="tab-content">
+
+  <label class="font-semibold">Logo</label>
+
+  <!-- PREVIEW CONTAINER -->
+  <div class="w-48 h-48 border rounded flex items-center justify-center bg-white shadow mt-3 mb-3">
+    {% if emisor.logo_path %}
+      <img id="preview-logo"
+           src="{{ emisor.logo_path }}"
+           class="max-h-44 max-w-44 object-contain" />
+      <span id="preview-placeholder" class="hidden"></span>
+    {% else %}
+      <img id="preview-logo" class="max-h-44 max-w-44 object-contain hidden" />
+      <span id="preview-placeholder" class="text-gray-400 text-sm">
+        No hay logo seleccionado
+      </span>
+    {% endif %}
+  </div>
+
+  <!-- ================= SUBIR LOGO ================= -->
+  <form action="/configuracion/emisor/logo" method="post" enctype="multipart/form-data">
+    <input
+      type="file"
+      name="file"
+      accept="image/*"
+      class="form-control mt-2"
+      onchange="previewLogo(this)"
+      required
+    />
+    <button class="btn btn-primary mt-4">Subir logo</button>
+  </form>
+
+  <!-- ================= ELIMINAR LOGO ================= -->
+  {% if emisor.logo_path %}
+  <form action="/configuracion/emisor/logo/eliminar" method="post" class="mt-3">
+    <button class="btn btn-danger"
+      onclick="return confirm('¿Eliminar logo definitivamente?')">
+      Quitar logo
+    </button>
+  </form>
+  {% endif %}
+</div>
+<script>
+  function previewLogo(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const preview = document.getElementById("preview-logo");
+    const placeholder = document.getElementById("preview-placeholder");
+
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove("hidden");
+    placeholder?.classList.add("hidden");
+  }
+</script>
+
+    <!-- ===================================================== -->
+    <!-- TAB 3: TEXTOS LEGALES -->
+    <!-- ===================================================== -->
+    <div id="tab-textos" class="tab-content">
+      <form
+        action="/configuracion/emisor/textos"
+        method="post"
+        class="space-y-6"
+      >
+        <div>
+          <label class="font-semibold">Texto de pie de factura</label>
+          <textarea
+            name="texto_pie"
+            id="texto_pie"
+            class="form-control"
+            rows="3"
+          >
+{{ emisor.texto_pie or '' }}</textarea
+          >
+        </div>
+
+        <div>
+          <label class="font-semibold">Texto para facturas exentas</label>
+          <textarea
+            name="texto_exento"
+            id="texto_exento"
+            class="form-control"
+            rows="3"
+          >
+{{ emisor.texto_exento or '' }}</textarea
+          >
+        </div>
+
+        <div>
+          <label class="font-semibold"
+            >Texto para facturas rectificativas</label
+          >
+          <textarea
+            name="texto_rectificativa"
+            id="texto_rectificativa"
+            class="form-control"
+            rows="3"
+          >
+{{ emisor.texto_rectificativa or '' }}</textarea
+          >
+        </div>
+
+        <div class="flex gap-2 mt-2">
+          <button
+            type="button"
+            class="btn btn-secondary plantilla-btn"
+            data-type="pie"
+          >
+            Plantilla pie
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary plantilla-btn"
+            data-type="exento"
+          >
+            Plantilla exento
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary plantilla-btn"
+            data-type="rectificativa"
+          >
+            Plantilla rectificativa
+          </button>
+        </div>
+
+        <button class="btn btn-primary mt-4">Guardar textos</button>
+      </form>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- TAB 4: CERTIFICADO DIGITAL -->
+    <!-- ===================================================== -->
+    <div id="tab-cert" class="tab-content space-y-4">
+      <form
+        action="/configuracion/emisor/certificado"
+        method="post"
+        enctype="multipart/form-data"
+        class="space-y-3"
+      >
+        <label class="font-semibold">Archivo .pfx</label>
+        <input
+          type="file"
+          id="certificadoFile"
+          name="file"
+          class="form-control"
+          accept=".pfx,.p12"
+          required
+        />
+
+        <label class="font-semibold">Contraseña</label>
+        <input
+          type="password"
+          id="certPassword"
+          name="password"
+          class="form-control"
+        />
+
+        <button class="btn btn-primary mt-4">Guardar certificado</button>
+      </form>
+
+      <hr />
+
+      <!-- PANEL DE INFORMACIÓN -->
+      <div id="certPanel" class="p-4 rounded border bg-white shadow-sm hidden">
+        <h3 class="font-semibold mb-2">Información del certificado</h3>
+
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div><strong>Titular:</strong> <span id="certTitular"></span></div>
+          <div><strong>Emisor:</strong> <span id="certEmisor"></span></div>
+          <div><strong>Válido desde:</strong> <span id="certDesde"></span></div>
+          <div><strong>Válido hasta:</strong> <span id="certHasta"></span></div>
+          <div>
+            <strong>Días restantes:</strong> <span id="certDias"></span>
+          </div>
+        </div>
+
+        <div
+          id="certEstado"
+          class="mt-3 p-2 rounded text-center font-semibold"
+        ></div>
+      </div>
+
+      <div id="certError" class="text-red-600 font-semibold hidden"></div>
+
+      <button type="button" id="btnTestCert" class="btn btn-secondary mt-2">
+        Probar certificado
+      </button>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- TAB 5: PDF -->
+    <!-- ===================================================== -->
+    <div id="tab-pdf" class="tab-content">
+      <label class="form-label">Carpeta donde guardar los PDF</label>
+
+      <input
+        type="text"
+        id="rutaPdf"
+        name="ruta_pdf"
+        class="form-control w-full"
+        readonly
+        value="{{ emisor.ruta_pdf or '' }}"
+      />
+
+      <button
+        type="button"
+        id="btnElegirCarpeta"
+        class="btn btn-secondary mt-2"
+      >
+        Seleccionar carpeta
+      </button>
+    </div>
+
+    <script>
+      document
+        .getElementById("btnElegirCarpeta")
+        .addEventListener("click", async () => {
+          const resp = await fetch("/configuracion/emisor/seleccionar-carpeta");
+          const data = await resp.json();
+
+          if (!data || !data.carpeta) {
+            alert("No seleccionaste ninguna carpeta.");
+            return;
+          }
+
+          // Ruta absoluta real del sistema
+          document.getElementById("rutaPdf").value = data.carpeta;
+
+          // Guardar automáticamente
+          const fd = new FormData();
+          fd.append("ruta_pdf", data.carpeta);
+
+          await fetch("/configuracion/emisor/ruta-pdf", {
+            method: "POST",
+            body: fd,
+          });
+
+          alert("Ruta guardada correctamente.");
+        });
+    </script>
+
+    <!-- ===================================================== -->
+    <!-- TAB 6: SEGURIDAD -->
+    <!-- ===================================================== -->
+    <div id="tab-seguridad" class="tab-content">
+      <form action="/configuracion/emisor/seguridad" method="post">
+        <label class="font-semibold">PIN de acceso</label>
+        <input
+          name="pin"
+          value="{{ emisor.seguridad_pin or '' }}"
+          class="form-control"
+        />
+
+        <label class="font-semibold mt-3">Tiempo de bloqueo (minutos)</label>
+        <input
+          name="timeout"
+          type="number"
+          value="{{ emisor.seguridad_timeout_min or 0 }}"
+          class="form-control"
+        />
+
+        <button class="btn btn-primary mt-4">Guardar seguridad</button>
+      </form>
+    </div>
+    <!-- ===================================================== -->
+    <!-- TAB 7: NUMERACIÓN -->
+    <!-- ===================================================== -->
+
+    <div id="tab-numeracion" class="tab-content p-4 bg-white rounded shadow-sm">
+      <h2>Configuración de Numeración</h2>
+      <p class="text-muted">
+        Defina el formato de numeración de las facturas. Una vez validada la
+        primera factura del año, la numeración quedará bloqueada hasta el
+        próximo ejercicio.
+      </p>
+
+      {% if bloqueo_numeracion %}
+      <div class="alert alert-warning">
+        La numeración no puede modificarse porque ya existe una factura validada
+        en este ejercicio.
+      </div>
+      {% else %}
+
+      <form method="POST" action="/configuracion/emisor/numeracion">
+        <!-- SERIE -->
+        <div class="form-group">
+          <label>Serie de facturación</label>
+          <input
+            type="text"
+            class="form-control"
+            id="serie_facturacion"
+            name="serie_facturacion"
+            value="{{ emisor.serie_facturacion }}"
+            maxlength="10"
+            required
+          />
+          <small class="text-muted">Ejemplos: A, B, C, SERIE1...</small>
+        </div>
+
+        <!-- PLANTILLA -->
+        <div class="mb-3">
+          <label class="form-label fw-bold">Plantilla de numeración</label>
+          <input
+            type="text"
+            id="numeracion_plantilla"
+            name="numeracion_plantilla"
+            class="form-control"
+            placeholder="Ej: {SERIE}-{YEAR}-{NUM:04d}"
+            value="{{ emisor.numeracion_plantilla }}"
+          />
+
+          <small class="text-muted d-block mt-2">
+            Puede insertar marcadores haciendo clic sobre ellos:
+          </small>
+
+          <div class="d-flex flex-wrap gap-2 mt-2">
+            <span class="badge bg-secondary marcador" data-value="{SERIE}">
+              {SERIE}
+            </span>
+
+            <span class="badge bg-secondary marcador" data-value="{YEAR}">
+              {YEAR}
+            </span>
+
+            <span class="badge bg-secondary marcador" data-value="{MONTH}">
+              {MONTH}
+            </span>
+
+            <span class="badge bg-secondary marcador" data-value="{NUM}">
+              {NUM}
+            </span>
+
+            <span class="badge bg-secondary marcador" data-value="{NUM:04d}">
+              {NUM:04d}
+            </span>
+          </div>
+
+          <small class="text-muted d-block mt-3">
+            Ejemplos:
+            <code>A-{YEAR}-{NUM:04d}</code>,
+            <code>{YEAR}/{SERIE}/{NUM:03d}</code>,
+            <code>FAC-{YEAR}-{MONTH}-{NUM}</code>
+          </small>
+        </div>
+
+        <!-- PREVIEW -->
+        <div class="form-group mt-3">
+          <label class="fw-bold">Previsualización</label>
+          <div
+            class="preview-box border rounded p-2 mt-1 bg-light"
+            id="preview-numeracion"
+          >
+            ...
+          </div>
+        </div>
+
+        <button class="btn btn-primary mt-4">Guardar configuración</button>
+      </form>
+
+      {% endif %}
+    </div>
+    <style>
+      .preview-box {
+        padding: 10px 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dcdcdc;
+        font-size: 1.2rem;
+        font-weight: bold;
+        letter-spacing: 1px;
+      }
+    </style>
+    <!-- ===================================================== -->
+    <!-- SCRIPTS GENERALES -->
+    <!-- ===================================================== -->
+    <script>
+      /* Tabs */
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".tab-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+
+          document
+            .querySelectorAll(".tab-content")
+            .forEach((c) => c.classList.remove("active"));
+          document
+            .getElementById("tab-" + btn.dataset.tab)
+            .classList.add("active");
+        });
+      });
+
+      /* Plantillas textos legales */
+      const plantillas = {
+        pie: "El pago se hará por transferencia bancaria a la cta. Nº: ES00 0000 0000 0000 0000 0000. Gracias por su confianza.",
+        exento:
+          "FACTURA EXENTA DE IVA POR INVERSIÓN DEL SUJETO PASIVO (ART. 84 UNO 2º F LEY IVA 37/1992).",
+        rectificativa:
+          "Factura rectificativa emitida conforme al Art. 89 de la Ley 37/1992 del IVA.",
+      };
+
+      document.querySelectorAll(".plantilla-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = {
+            pie: "texto_pie",
+            exento: "texto_exento",
+            rectificativa: "texto_rectificativa",
+          }[btn.dataset.type];
+
+          document.getElementById(target).value = plantillas[btn.dataset.type];
+        });
+      });
+
+      /* Selector de carpeta */
+      document
+        .getElementById("btnElegirCarpeta")
+        .addEventListener("click", () => {
+          document.getElementById("folderPicker").click();
+        });
+
+      document
+        .getElementById("folderPicker")
+        .addEventListener("change", (e) => {
+          if (!e.target.files.length) return;
+
+          const first = e.target.files[0].webkitRelativePath;
+          const folder = first.split("/")[0];
+
+          document.getElementById("rutaPdf").value = folder;
+        });
+
+      /* Probar certificado */
+      document
+        .getElementById("btnTestCert")
+        .addEventListener("click", async () => {
+          const archivo = document.getElementById("certificadoFile").files[0];
+          const password = document.getElementById("certPassword").value;
+
+          if (!archivo) {
+            alert("Selecciona un certificado primero.");
+            return;
+          }
+
+          const form = new FormData();
+          form.append("file", archivo);
+          form.append("password", password);
+
+          const resp = await fetch("/configuracion/emisor/test-cert", {
+            method: "POST",
+            body: form,
+          });
+
+          const data = await resp.json();
+          const div = document.getElementById("certResultado");
+
+          if (!data.ok) {
+            div.className = "text-red-600";
+            div.innerHTML = `<strong>${data.mensaje}</strong>`;
+            return;
+          }
+
+          div.className = "text-green-600";
+          div.innerHTML = `
+        <strong>${data.mensaje}</strong><br>
+        <br>
+        <strong>Titular:</strong> ${data.titular}<br>
+        <strong>Emisor:</strong> ${data.emisor}<br>
+        <strong>Válido desde:</strong> ${data.valido_desde}<br>
+        <strong>Válido hasta:</strong> ${data.valido_hasta}<br>
+        <strong>Días restantes:</strong> ${data.dias_restantes}<br>
+        <strong>¿Autofirmado?</strong> ${data.autofirmado ? "Sí" : "No"}<br>
+    `;
+        });
+    </script>
+    <script>
+      function actualizarPanelCertificado(data) {
+        const panel = document.getElementById("certPanel");
+        const error = document.getElementById("certError");
+        const estado = document.getElementById("certEstado");
+
+        if (!data.ok) {
+          panel.classList.add("hidden");
+          error.classList.remove("hidden");
+          error.textContent = data.mensaje;
+          return;
+        }
+
+        error.classList.add("hidden");
+        panel.classList.remove("hidden");
+
+        document.getElementById("certTitular").textContent = data.titular;
+        document.getElementById("certEmisor").textContent = data.emisor;
+        document.getElementById("certDesde").textContent = data.valido_desde;
+        document.getElementById("certHasta").textContent = data.valido_hasta;
+        document.getElementById("certDias").textContent = data.dias_restantes;
+
+        let dias = data.dias_restantes;
+
+        if (dias > 60) {
+          estado.textContent = "Certificado válido";
+          estado.className = "bg-green-100 text-green-700 p-2 rounded";
+        } else if (dias > 15) {
+          estado.textContent = "Aviso: Certificado próximo a caducar";
+          estado.className = "bg-yellow-100 text-yellow-700 p-2 rounded";
+        } else if (dias >= 0) {
+          estado.textContent = "¡Urgente! El certificado caduca muy pronto";
+          estado.className = "bg-red-100 text-red-700 p-2 rounded";
+        } else {
+          estado.textContent = "Certificado caducado";
+          estado.className = "bg-red-200 text-red-800 p-2 rounded";
+        }
+      }
+
+      /* AUTO-CARGA DE INFORMACIÓN AL ABRIR EL TAB */
+      document
+        .querySelector("[data-tab='cert']")
+        .addEventListener("click", async () => {
+          const resp = await fetch("/configuracion/emisor/certificado/info");
+          const data = await resp.json();
+          actualizarPanelCertificado(data);
+        });
+
+      /* BOTÓN DE TEST MANUAL */
+      document
+        .getElementById("btnTestCert")
+        .addEventListener("click", async () => {
+          let archivo = document.getElementById("certificadoFile").files[0];
+          let password = document.getElementById("certPassword").value;
+
+          if (!archivo) {
+            alert("Selecciona un .pfx para probar.");
+            return;
+          }
+
+          let fd = new FormData();
+          fd.append("file", archivo);
+          fd.append("password", password);
+
+          const resp = await fetch("/configuracion/emisor/test-cert", {
+            method: "POST",
+            body: fd,
+          });
+
+          const data = await resp.json();
+          actualizarPanelCertificado(data);
+        });
+    </script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const inputPlantilla = document.getElementById("plantilla-input");
+        const preview = document.getElementById("preview-numeracion");
+
+        if (!inputPlantilla) return;
+
+        function generarPreview() {
+          let p = inputPlantilla.value;
+
+          const serie = "{{ emisor.serie_facturacion }}";
+          const year = new Date().getFullYear();
+          const month = ("0" + (new Date().getMonth() + 1)).slice(-2);
+          const num = 1;
+
+          p = p
+            .replace("{SERIE}", serie)
+            .replace("{YEAR}", year)
+            .replace("{MONTH}", month)
+            .replace("{NUM:04d}", "0001")
+            .replace("{NUM}", "1");
+
+          preview.textContent = p;
+        }
+
+        inputPlantilla.addEventListener("input", generarPreview);
+
+        // Inicial
+        generarPreview();
+      });
+    </script>
+
+    <!-- ========================================================= -->
+    <!-- SCRIPT PREVIEW NUMERACIÓN -->
+    <!-- ========================================================= -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const plantillaInput = document.getElementById("numeracion_plantilla");
+        const serieInput = document.getElementById("serie_facturacion");
+        const previewBox = document.getElementById("preview-numeracion");
+        const marcadores = document.querySelectorAll(".marcador");
+
+        if (!plantillaInput || !previewBox) return;
+
+        // Datos para preview
+        const hoy = new Date();
+        const YEAR = hoy.getFullYear();
+        const MONTH = String(hoy.getMonth() + 1).padStart(2, "0");
+        const NUM = 1;
+
+        function actualizarPreview() {
+          let plantilla = plantillaInput.value || "";
+          let serie = (serieInput ? serieInput.value : "").toUpperCase() || "A";
+
+          let preview = plantilla
+            .replaceAll("{SERIE}", serie)
+            .replaceAll("{YEAR}", YEAR)
+            .replaceAll("{MONTH}", MONTH)
+            .replaceAll("{NUM:04d}", String(NUM).padStart(4, "0"))
+            .replaceAll("{NUM}", NUM);
+
+          previewBox.textContent = preview || "...";
+        }
+
+        // Insertar marcador con clic
+        marcadores.forEach((tag) => {
+          tag.style.cursor = "pointer";
+          tag.addEventListener("click", () => {
+            plantillaInput.value += tag.dataset.value;
+            actualizarPreview();
+          });
+        });
+
+        plantillaInput.addEventListener("input", actualizarPreview);
+        if (serieInput) serieInput.addEventListener("input", actualizarPreview);
+
+        // EJECUTAR PREVIEW AL ENTRAR EN LA PÁGINA
+        actualizarPreview();
+      });
+    </script>
+
+    {% endblock %}
+  </form>
+</div>

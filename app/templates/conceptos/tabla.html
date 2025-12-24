@@ -1,0 +1,42 @@
+{% for c in conceptos %}
+<tr
+  data-concepto='{{ {
+    "id": c.id,
+    "nombre": c.nombre,
+    "descripcion": c.descripcion,
+    "fecha_creacion": c.fecha_creacion.isoformat() if c.fecha_creacion else None
+} | tojson | safe }}'
+>
+  <td>{{ c.nombre }}</td>
+
+  <td>
+    {{ c.descripcion[:80] }}{% if c.descripcion|length > 80 %}...{% endif %}
+  </td>
+
+  <td>{{ c.fecha_creacion.strftime("%d/%m/%Y") }}</td>
+
+  <td class="text-end acciones" style="visibility: hidden">
+    <a href="/conceptos/{{ c.id }}/edit" class="btn btn-sm btn-primary"
+      >Editar</a
+    >
+
+    <form
+      method="post"
+      action="/conceptos/{{ c.id }}/delete"
+      style="display: inline"
+    >
+      <button
+        type="submit"
+        class="btn btn-sm btn-danger"
+        onclick="return confirm('¿Eliminar concepto?');"
+      >
+        Eliminar
+      </button>
+    </form>
+  </td>
+</tr>
+{% endfor %} {% if conceptos|length == 0 %}
+<tr>
+  <td colspan="4" class="text-center text-muted">Sin resultados</td>
+</tr>
+{% endif %}

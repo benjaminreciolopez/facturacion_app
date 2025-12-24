@@ -1,0 +1,1023 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>Facturas</h2>
+
+<div class="d-flex justify-content-between mb-3">
+  <input
+    type="text"
+    id="searchInput"
+    class="form-control w-25"
+    placeholder="Buscar factura..."
+    style="cursor: pointer"
+  />
+  <a href="/facturas/offline" class="btn btn-success">Facturas offline</a>
+
+  <a href="/facturas/form" class="btn btn-success">Nueva Factura</a>
+</div>
+
+<table class="table table-hover w-100 table-resizable" id="tablaFacturas">
+  <thead>
+    <tr>
+      <th data-sort-key="numero" style="cursor: pointer">Nº</th>
+      <th data-sort-key="cliente" style="cursor: pointer">Cliente</th>
+      <th data-sort-key="fecha" style="cursor: pointer">Fecha</th>
+      <th data-sort-key="estado" style="cursor: pointer">Estado</th>
+      <th data-sort-key="total" style="cursor: pointer">Total</th>
+      <th class="text-end">Acciones</th>
+    </tr>
+  </thead>
+
+  <tbody id="facturasTabla">
+    {% include "facturas/tabla.html" %}
+  </tbody>
+</table>
+
+<!-- ============================
+     MODAL DETALLE FACTURA
+============================= -->
+<div id="facturaModal" class="modal-overlay" style="display: none">
+  <div class="modal-dialog-custom">
+    <h4 id="modalNumero" class="mb-3"></h4>
+
+    <p><strong>Cliente:</strong> <span id="modalCliente"></span></p>
+    <p><strong>Fecha:</strong> <span id="modalFecha"></span></p>
+    <p><strong>Total:</strong> <span id="modalTotal"></span></p>
+    <p><strong>Estado:</strong> <span id="modalEstado"></span></p>
+
+    <div class="mt-3 text-end">
+      <a id="btnEditarModal" class="btn btn-primary">Editar</a>
+      <button type="button" id="btnValidarModal" class="btn btn-success ms-2">
+        Validar y generar PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================
+     MODAL VALIDAR FACTURA
+============================= -->
+<div
+  id="modalValidarFactura"
+  class="fixed inset-0 bg-black/40 hidden items-center justify-center"
+  style="z-index: 6000; backdrop-filter: blur(2px)"
+>
+  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+    <h3 class="text-xl font-semibold mb-3">Validar factura</h3>
+
+    <div class="mb-3">
+      Número provisional: <strong id="val-numero"></strong><br />
+      Cliente: <strong id="val-cliente"></strong><br />
+      Total: <strong id="val-total"></strong>
+    </div>
+
+    <div class="mb-3">
+      <label class="font-semibold">Fecha definitiva</label>
+      <input type="date" id="val-fecha" class="form-control" required />
+      <small class="text-muted">
+        Solo se permiten fechas posteriores a la última factura validada.
+      </small>
+    </div>
+
+    <div id="val-msg" class="text-danger mt-2"></div>
+
+    <div class="text-end mt-4">
+      <button class="btn btn-secondary" onclick="cerrarModalValidar()">
+        Cancelar
+      </button>
+      <button class="btn btn-success ml-2" id="btnConfirmarValidacion">
+        Validar ahora
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================
+     MODAL MENSAJE IVA
+============================= -->
+<div
+  id="modalIVA"
+  class="fixed inset-0 bg-black/40 hidden items-center justify-center"
+  style="z-index: 7000; backdrop-filter: blur(2px)"
+>
+  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg">
+    <h3 class="text-xl font-semibold mb-3">Mensaje IVA</h3>
+
+    <p class="text-muted">
+      Seleccione o modifique el mensaje de IVA que aparecerá en la factura:
+    </p>
+
+    <textarea id="iva-textarea" class="form-control mt-3" rows="5"></textarea>
+
+    <div class="text-end mt-4">
+      <button class="btn btn-secondary" onclick="cerrarModalIVA()">
+        Cancelar
+      </button>
+      <button class="btn btn-success ml-2" id="btnAceptarIVA">
+        Usar mensaje
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ===========================================================
+   SELECCIÓN DE FILA + SOMBRA AMPLIADA
+=========================================================== */
+
+  /* Fila seleccionada: fondo base */
+  #tablaFacturas tr.selected-row > td {
+    background-color: #e8f2ff;
+  }
+
+  /* Elevar la fila seleccionada sobre el resto */
+  #tablaFacturas tr.selected-row {
+    position: relative;
+    z-index: 3;
+  }
+
+  /* Sombra ampliada que envuelve también las acciones */
+  #tablaFacturas tr.selected-row::after {
+    content: "";
+    position: absolute;
+    inset: -6px; /* amplía la sombra más allá de la fila */
+    border-radius: 6px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* ===========================================================
+   MODALES
+=========================================================== */
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 8vh;
+    z-index: 1050;
+  }
+
+  .modal-dialog-custom {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px 24px;
+    min-width: 360px;
+    max-width: 560px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  /* ===========================================================
+   TABLA FACTURAS – BASE
+=========================================================== */
+
+  #tablaFacturas tr {
+    cursor: pointer;
+  }
+
+  table.table-resizable {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  table.table-resizable th,
+  table.table-resizable td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ===========================================================
+   RESIZE DE COLUMNAS
+=========================================================== */
+
+  th.resizable {
+    position: relative;
+  }
+
+  th.resizable .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+  }
+
+  /* ===========================================================
+   BADGES
+=========================================================== */
+
+  #tablaFacturas td span.badge,
+  #tablaClientes td span.badge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* ===========================================================
+   ALINEACIÓN FACTURAS
+=========================================================== */
+
+  /* Encabezados centrados */
+  #tablaFacturas thead th {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Celdas centradas */
+  #tablaFacturas tbody td {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Columna acciones a la derecha */
+  #tablaFacturas th:last-child,
+  #tablaFacturas td.acciones {
+    text-align: right;
+  }
+
+  /* ===========================================================
+   ACCIONES EXPANSIBLES
+=========================================================== */
+
+  /* Estado normal: acciones comprimidas */
+  #tablaFacturas td.acciones {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: max-width 0.25s ease;
+  }
+
+  /* Al seleccionar la fila: expandir acciones */
+  #tablaFacturas tr.selected-row td.acciones {
+    max-width: 1000px;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  /* Contenedor interno de botones */
+  #tablaFacturas .acciones-wrap {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+</style>
+
+<script>
+  /* ============================================================
+       ESTADO GLOBAL
+    ============================================================ */
+  let facturaSeleccionada = null;
+  let FACTURA_A_VALIDAR = null;
+  let FACTURA_ROW_A_VALIDAR = null;
+  let MENSAJE_IVA_SELECCIONADO = "";
+  const sortState = JSON.parse(
+    localStorage.getItem("facturas_sort_state") ||
+      '{"key":"fecha","direction":"desc"}'
+  );
+  // ---- Persistencia orden en localStorage ----
+  const SORT_STORAGE_KEY = "facturas_sort_state";
+
+  /* ===============================
+     PERSISTENCIA ORDEN
+  =============================== */
+
+  function loadSortState() {
+    try {
+      const raw = localStorage.getItem(SORT_STORAGE_KEY);
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      if (saved.key && saved.direction) return saved;
+    } catch (_) {}
+    return null;
+  }
+
+  function saveSortState() {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sortState));
+  }
+
+  /* ============================================================
+       UTILIDADES
+    ============================================================ */
+
+  function getFacturaData(tr) {
+    if (!tr) return {};
+    if (!tr._facturaData) {
+      try {
+        tr._facturaData = JSON.parse(tr.dataset.factura || "{}");
+      } catch (e) {
+        tr._facturaData = {};
+      }
+    }
+    return tr._facturaData;
+  }
+
+  function normalizarFecha(value) {
+    if (!value) return new Date(0); // muy antiguo
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return new Date(0);
+    return d;
+  }
+
+  function normalizarNumero(value) {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") return Number(value.replace(",", ".")) || 0;
+    return 0;
+  }
+  function parseNumeroFactura(value) {
+    if (!value) return { year: 0, corr: 0, rect: 0 };
+
+    let v = value.toString().trim().toUpperCase();
+    let rect = v.endsWith("R");
+    if (rect) v = v.slice(0, -1);
+
+    let partes = v.split("-");
+
+    let year = 0;
+    let corr = 0;
+
+    for (let p of partes) {
+      if (/^\d{4}$/.test(p)) year = parseInt(p);
+    }
+
+    let ultima = partes[partes.length - 1];
+    corr = parseInt(ultima) || 0;
+
+    return { year, corr, rect: rect ? 1 : 0 };
+  }
+
+  function compararValores(aVal, bVal, key) {
+    if (key === "numero") {
+      const A = parseNumeroFactura(aVal);
+      const B = parseNumeroFactura(bVal);
+
+      if (A.year !== B.year) return A.year - B.year;
+      if (A.corr !== B.corr) return A.corr - B.corr;
+      return A.rect - B.rect; // rectificativa detrás
+    }
+
+    if (key === "fecha") {
+      const da = normalizarFecha(aVal);
+      const db = normalizarFecha(bVal);
+      return da - db;
+    }
+
+    if (key === "total") {
+      const na = normalizarNumero(aVal);
+      const nb = normalizarNumero(bVal);
+      return na - nb;
+    }
+
+    const sa = (aVal || "").toString().toLowerCase();
+    const sb = (bVal || "").toString().toLowerCase();
+    if (sa < sb) return -1;
+    if (sa > sb) return 1;
+    return 0;
+  }
+  function hacerColumnasRedimensionables() {
+    const ths = document.querySelectorAll("#tablaFacturas thead th");
+
+    ths.forEach((th) => {
+      // Crear el handle que se arrastra
+      const handle = document.createElement("div");
+      handle.className = "resize-handle";
+      th.classList.add("resizable");
+      th.appendChild(handle);
+
+      let startX = 0;
+      let startWidth = 0;
+
+      handle.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        e.stopPropagation(); // evita conflicto con el click de ordenar
+
+        startX = e.pageX;
+        startWidth = th.offsetWidth;
+
+        document.documentElement.addEventListener("mousemove", onMouseMove);
+        document.documentElement.addEventListener("mouseup", onMouseUp);
+      });
+
+      function onMouseMove(e) {
+        const newWidth = startWidth + (e.pageX - startX);
+        if (newWidth > 50) {
+          th.style.width = newWidth + "px";
+
+          // Aplicar el mismo ancho a las celdas del cuerpo
+          const index = Array.from(th.parentNode.children).indexOf(th);
+          document
+            .querySelectorAll(
+              `#tablaFacturas tbody tr td:nth-child(${index + 1})`
+            )
+            .forEach((td) => (td.style.width = newWidth + "px"));
+        }
+      }
+
+      function onMouseUp() {
+        document.documentElement.removeEventListener("mousemove", onMouseMove);
+        document.documentElement.removeEventListener("mouseup", onMouseUp);
+      }
+    });
+  }
+
+  function aplicarOrdenVisual(th, direction) {
+    // opcional: limpiar indicadores en todos
+    document
+      .querySelectorAll("#tablaFacturas thead th[data-sort-key]")
+      .forEach((other) => {
+        other.dataset.sortDirection = "";
+        other.textContent = other.textContent
+          .replace(/[\u25B2\u25BC]/g, "")
+          .trim();
+      });
+
+    // añadir indicador en th actual
+    th.dataset.sortDirection = direction;
+    const label = th.textContent.replace(/[\u25B2\u25BC]/g, "").trim();
+    const arrow = direction === "asc" ? " \u25B2" : " \u25BC"; // ▲ / ▼
+    th.textContent = label + arrow;
+  }
+
+  /* ============================================================
+       ORDENACIÓN DE LA TABLA
+    ============================================================ */
+
+  function ordenarPor(key, direction) {
+    const tbody = document.getElementById("facturasTabla");
+    const filas = Array.from(tbody.querySelectorAll("tr[data-factura]"));
+
+    filas.sort((trA, trB) => {
+      const dataA = getFacturaData(trA);
+      const dataB = getFacturaData(trB);
+      const aVal = dataA[key];
+      const bVal = dataB[key];
+      let cmp = compararValores(aVal, bVal, key);
+      if (direction === "desc") cmp = -cmp;
+      return cmp;
+    });
+
+    // Reaplicar en el DOM respetando el estado de display (filtro)
+    filas.forEach((tr) => tbody.appendChild(tr));
+  }
+
+  function inicializarOrdenInicial() {
+    ordenarPor(sortState.key, sortState.direction);
+
+    const th = document.querySelector(
+      `#tablaFacturas thead th[data-sort-key="${sortState.key}"]`
+    );
+
+    if (th) {
+      aplicarOrdenVisual(th, sortState.direction);
+    }
+  }
+
+  /* ============================================================
+       BUSCADOR
+    ============================================================ */
+
+  function inicializarBuscador() {
+    const input = document.getElementById("searchInput");
+    if (!input) return;
+
+    input.addEventListener("input", function () {
+      const q = this.value.toLowerCase();
+      document
+        .querySelectorAll("#facturasTabla tr[data-factura]")
+        .forEach((tr) => {
+          const data = getFacturaData(tr);
+          const texto =
+            (data.numero || "") +
+            " " +
+            (data.cliente || "") +
+            " " +
+            (data.estado || "") +
+            " " +
+            (data.total || "");
+          tr.style.display = texto.toLowerCase().includes(q) ? "" : "none";
+        });
+    });
+  }
+
+  /* ============================================================
+       GESTIÓN DE CABECERAS (CLICK PARA ORDENAR)
+    ============================================================ */
+
+  function inicializarOrdenacionCabeceras() {
+    const thead = document.querySelector("#tablaFacturas thead");
+    if (!thead) return;
+
+    thead.addEventListener("click", (e) => {
+      const th = e.target.closest("th[data-sort-key]");
+      if (!th) return;
+
+      const key = th.dataset.sortKey;
+      if (!key) return;
+
+      // Alternar dirección
+      if (sortState.key === key) {
+        sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+      } else {
+        sortState.key = key;
+        sortState.direction = "asc";
+      }
+
+      // guardar persistencia
+      localStorage.setItem("facturas_sort_state", JSON.stringify(sortState));
+
+      ordenarPor(sortState.key, sortState.direction);
+      aplicarOrdenVisual(th, sortState.direction);
+    });
+  }
+
+  /* ============================================================
+       MODAL DETALLE FACTURA
+    ============================================================ */
+
+  function abrirModalDetalle(tr) {
+    const data = getFacturaData(tr);
+    const modal = document.getElementById("facturaModal");
+
+    FACTURA_A_VALIDAR = data;
+    FACTURA_ROW_A_VALIDAR = tr;
+
+    document.getElementById("modalNumero").innerText = data.numero || "Factura";
+    document.getElementById("modalCliente").innerText = data.cliente || "-";
+
+    const total =
+      typeof data.total === "number" ? data.total : Number(data.total || 0);
+    document.getElementById("modalTotal").innerText = total.toFixed(2) + " €";
+
+    let fecha = "-";
+    if (data.fecha) fecha = new Date(data.fecha).toLocaleDateString("es-ES");
+    document.getElementById("modalFecha").innerText = fecha;
+
+    document.getElementById("modalEstado").innerText = data.estado || "-";
+
+    document.getElementById(
+      "btnEditarModal"
+    ).href = `/facturas/${data.id}/edit`;
+
+    const btnValidarModal = document.getElementById("btnValidarModal");
+    if (data.estado === "BORRADOR") {
+      btnValidarModal.style.display = "inline-block";
+    } else {
+      btnValidarModal.style.display = "none";
+    }
+
+    modal.style.display = "flex";
+  }
+
+  function inicializarCierreModalDetalle() {
+    const modal = document.getElementById("facturaModal");
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  }
+
+  /* ============================================================
+       SELECCIÓN DE FILAS Y DELEGACIÓN EN TBODY
+    ============================================================ */
+
+  function inicializarEventosTabla() {
+    const tbody = document.getElementById("facturasTabla");
+    if (!tbody) return;
+
+    const limpiarSeleccion = () => {
+      document
+        .querySelectorAll("#facturasTabla tr")
+        .forEach((r) => r.classList.remove("selected-row"));
+      document
+        .querySelectorAll("#facturasTabla .acciones")
+        .forEach((c) => (c.style.visibility = "hidden"));
+    };
+
+    tbody.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr[data-factura]");
+      if (!tr) return;
+
+      // Evitar que al hacer click en botones se lance selección/detalle
+      if (e.target.closest("button, a")) return;
+
+      limpiarSeleccion();
+      tr.classList.add("selected-row");
+      const acciones = tr.querySelector(".acciones");
+      if (acciones) acciones.style.visibility = "visible";
+    });
+
+    tbody.addEventListener("dblclick", (e) => {
+      const tr = e.target.closest("tr[data-factura]");
+      if (!tr) return;
+      abrirModalDetalle(tr);
+    });
+
+    // Delegación de botones validar / anular / rectificar
+    tbody.addEventListener("click", async (e) => {
+      const btnValidar = e.target.closest(".btn-validar");
+      const btnAnular = e.target.closest(".btn-anular");
+      const btnRectificar = e.target.closest(".btn-rectificar");
+
+      if (btnValidar) {
+        const tr = btnValidar.closest("tr[data-factura]");
+        if (tr) abrirModalValidarDesdeFila(tr);
+        return;
+      }
+
+      if (btnAnular) {
+        const id = btnAnular.dataset.id;
+        if (
+          !confirm(
+            "Se va a ANULAR la factura y generar una rectificativa automática.\n¿Continuar?"
+          )
+        ) {
+          return;
+        }
+
+        const resp = await fetch(`/facturas/${id}/anular`, {
+          method: "POST",
+        });
+        const out = await resp.json();
+
+        if (!out.ok) {
+          if (out.need_ruta_pdf) {
+            alert(
+              "No hay carpeta configurada para los PDF.\nConfigúrala en Configuración > Emisor (pestaña PDF)."
+            );
+            window.location.href = "/configuracion/emisor?tab=pdf";
+            return;
+          }
+          alert(out.error || "Error al anular la factura.");
+          return;
+        }
+
+        window.location.reload();
+        return;
+      }
+
+      if (btnRectificar) {
+        const id = btnRectificar.dataset.id;
+        if (
+          !confirm(
+            "Se va a crear automáticamente una factura rectificativa (en negativo) con el mismo número y sufijo 'R'.\n¿Continuar?"
+          )
+        ) {
+          return;
+        }
+
+        const resp = await fetch(`/facturas/${id}/rectificar`, {
+          method: "POST",
+        });
+        const out = await resp.json();
+
+        if (!out.ok) {
+          if (out.need_ruta_pdf) {
+            alert(
+              "No hay carpeta configurada para los PDF.\nConfigúrala en Configuración > Emisor (pestaña PDF)."
+            );
+            window.location.href = "/configuracion/emisor?tab=pdf";
+            return;
+          }
+          alert(out.error || "Error al crear la rectificativa.");
+          return;
+        }
+
+        window.location.reload();
+        return;
+      }
+    });
+  }
+  function limpiarSeleccionTabla() {
+    document
+      .querySelectorAll("#facturasTabla tr")
+      .forEach((r) => r.classList.remove("selected-row"));
+
+    document
+      .querySelectorAll("#facturasTabla .acciones")
+      .forEach((c) => (c.style.visibility = "hidden"));
+  }
+
+  /* ============================================================
+       VALIDACIÓN DEFINITIVA (MODAL)
+    ============================================================ */
+
+  function cerrarModalValidar() {
+    const modal = document.getElementById("modalValidarFactura");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+
+  function abrirModalValidarDesdeFila(tr) {
+    const data = getFacturaData(tr);
+    FACTURA_A_VALIDAR = data;
+    FACTURA_ROW_A_VALIDAR = tr;
+
+    document.getElementById("val-numero").textContent =
+      data.numero || "(sin número)";
+    document.getElementById("val-cliente").textContent = data.cliente || "-";
+
+    const total =
+      typeof data.total === "number" ? data.total : Number(data.total || 0);
+    document.getElementById("val-total").textContent = total.toFixed(2) + " €";
+
+    fetch("/facturas/min-date")
+      .then((r) => r.json())
+      .then((out) => {
+        const inputFecha = document.getElementById("val-fecha");
+        if (out.min_date) inputFecha.min = out.min_date;
+        inputFecha.value =
+          out.min_date || new Date().toISOString().substring(0, 10);
+      })
+      .catch(() => {});
+
+    document.getElementById("val-msg").textContent = "";
+
+    const modal = document.getElementById("modalValidarFactura");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  async function validarFacturaDefinitiva(fecha, mensaje_iva) {
+    const fd = new FormData();
+    fd.append("fecha", fecha);
+    fd.append("mensaje_iva", mensaje_iva);
+
+    const resp = await fetch(`/facturas/${FACTURA_A_VALIDAR.id}/validar`, {
+      method: "POST",
+      body: fd,
+    });
+
+    const out = await resp.json();
+
+    if (!out.ok) {
+      alert(out.error || "Error validando la factura.");
+      return;
+    }
+
+    window.location.reload();
+  }
+
+  // ============================
+  // MODAL EMAIL – ABRIR
+  // ============================
+  function abrirModalEmailDesdeBoton(btn) {
+    facturaSeleccionada = btn.dataset.id;
+
+    const inputPara = document.getElementById("emailPara");
+    const inputAsunto = document.getElementById("emailAsunto");
+    const inputCuerpo = document.getElementById("emailCuerpo");
+
+    if (!inputPara || !inputAsunto || !inputCuerpo) {
+      console.error("Faltan campos del modal de email");
+      return;
+    }
+
+    inputPara.value = btn.dataset.email || "";
+    inputAsunto.value = btn.dataset.numero
+      ? `Factura ${btn.dataset.numero}`
+      : "Factura";
+    inputCuerpo.value = btn.dataset.numero
+      ? `Adjunto le enviamos la factura ${btn.dataset.numero}.`
+      : "Adjuntamos su factura.";
+
+    const modalEl = document.getElementById("emailFacturaModal");
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+    // 🔥 RESET BOTÓN SIEMPRE QUE SE ABRE
+    const btnEnviar = modalEl.querySelector(".modal-footer .btn-primary");
+    if (btnEnviar) {
+      btnEnviar.disabled = false;
+      btnEnviar.textContent = "Enviar";
+    }
+
+    modal.show();
+  }
+
+  // Listener único
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".btn-open-email");
+    if (!btn) return;
+
+    e.preventDefault();
+    abrirModalEmailDesdeBoton(btn);
+  });
+
+  // ============================
+  // MODAL EMAIL – ENVIAR
+  // ============================
+  async function enviarFacturaEmail() {
+    if (!facturaSeleccionada) {
+      alert("No hay factura seleccionada");
+      return;
+    }
+
+    const modalEl = document.getElementById("emailFacturaModal");
+    const bsModal = bootstrap.Modal.getInstance(modalEl);
+    const btn = modalEl.querySelector(".modal-footer .btn-primary");
+
+    const para = emailPara.value.trim();
+    const asunto = emailAsunto.value.trim();
+    const cuerpo = emailCuerpo.value.trim();
+    const ccRaw = emailCC.value.trim();
+    const adj = emailAdjunto.checked;
+
+    // 🔥 Estado enviando SOLO AL PULSAR
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "Enviando...";
+
+    try {
+      if (!para) throw new Error("Debe indicar un destinatario");
+      if (!asunto) throw new Error("Debe indicar asunto");
+
+      const res = await fetch(`/facturas/${facturaSeleccionada}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          para,
+          asunto,
+          cuerpo,
+          adjuntar_pdf: adj,
+          cc: ccRaw || null,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || "Error enviando email");
+
+      alert("Factura enviada correctamente");
+      bsModal.hide();
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      // 🔥 RESTAURA SIEMPRE
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  // ============================
+  // 🔥 ANTI-CONGELACIÓN REAL
+  // ============================
+  const modalEl = document.getElementById("emailFacturaModal");
+  if (modalEl) {
+    modalEl.addEventListener("hidden.bs.modal", () => {
+      facturaSeleccionada = null;
+
+      document.body.classList.remove("modal-open");
+      document.querySelectorAll(".modal-backdrop").forEach((el) => el.remove());
+    });
+  }
+  /* ============================================================
+       MODAL IVA
+    ============================================================ */
+
+  function abrirModalIVA(texto) {
+    document.getElementById("iva-textarea").value = texto || "";
+    const modal = document.getElementById("modalIVA");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  function cerrarModalIVA() {
+    const modal = document.getElementById("modalIVA");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+
+  /* ============================================================
+       OVERRIDE FLUJO VALIDACIÓN PARA AÑADIR PASO IVA
+    ============================================================ */
+
+  function inicializarBotonConfirmarValidacion() {
+    const btn = document.getElementById("btnConfirmarValidacion");
+    if (!btn) return;
+
+    btn.onclick = async () => {
+      const fecha = document.getElementById("val-fecha").value;
+      const msg = document.getElementById("val-msg");
+
+      if (!fecha) {
+        msg.textContent = "Debe seleccionar una fecha válida.";
+        return;
+      }
+
+      const consulta = await fetch(
+        `/facturas/${FACTURA_A_VALIDAR.id}/prevalidar`,
+        {
+          method: "POST",
+          body: (() => {
+            let f = new FormData();
+            f.append("fecha", fecha);
+            return f;
+          })(),
+        }
+      );
+
+      const out = await consulta.json();
+
+      if (!out.ok) {
+        msg.textContent = out.error || "No se puede validar la factura.";
+        return;
+      }
+
+      if (out.mensaje_iva_sugerido) {
+        MENSAJE_IVA_SELECCIONADO = out.mensaje_iva_sugerido;
+        abrirModalIVA(out.mensaje_iva_sugerido);
+        return;
+      }
+
+      // Si no hay mensaje IVA sugerido → validamos directo
+      validarFacturaDefinitiva(fecha, "");
+    };
+  }
+
+  function inicializarBotonAceptarIVA() {
+    const btn = document.getElementById("btnAceptarIVA");
+    if (!btn) return;
+
+    btn.onclick = async () => {
+      const textoIVA = document.getElementById("iva-textarea").value.trim();
+      cerrarModalIVA();
+
+      validarFacturaDefinitiva(
+        document.getElementById("val-fecha").value,
+        textoIVA
+      );
+    };
+  }
+
+  /* ============================================================
+       VALIDAR DESDE MODAL DETALLE
+    ============================================================ */
+
+  function inicializarValidarDesdeModalDetalle() {
+    const btn = document.getElementById("btnValidarModal");
+    if (!btn) return;
+
+    btn.onclick = () => {
+      if (!FACTURA_ROW_A_VALIDAR) return;
+      abrirModalValidarDesdeFila(FACTURA_ROW_A_VALIDAR);
+    };
+  }
+
+  /* ============================================================
+   INIT
+============================================================ */
+
+  document.addEventListener("DOMContentLoaded", () => {
+    inicializarBuscador();
+    inicializarOrdenacionCabeceras();
+    inicializarEventosTabla();
+    inicializarCierreModalDetalle();
+    inicializarBotonConfirmarValidacion();
+    inicializarBotonAceptarIVA();
+    inicializarValidarDesdeModalDetalle();
+
+    // Botón enviar email
+    const modalEl = document.getElementById("emailFacturaModal");
+    if (modalEl) {
+      const btnEnviar = modalEl.querySelector(".modal-footer .btn-primary");
+      if (btnEnviar) {
+        btnEnviar.onclick = (e) => {
+          e.preventDefault();
+          enviarFacturaEmail();
+        };
+      }
+    }
+
+    // Orden inicial
+    inicializarOrdenInicial();
+    hacerColumnasRedimensionables();
+
+    // Limpiar selección tabla si clic fuera
+    document.addEventListener("click", (e) => {
+      const tabla = document.getElementById("tablaFacturas");
+
+      if (tabla && tabla.contains(e.target)) return;
+
+      // Si algún modal propio está abierto
+      if (
+        document.getElementById("facturaModal").style.display === "flex" ||
+        !document
+          .getElementById("modalValidarFactura")
+          .classList.contains("hidden") ||
+        !document.getElementById("modalIVA").classList.contains("hidden")
+      ) {
+        return;
+      }
+
+      // Si hay modal Bootstrap abierto
+      if (document.querySelector(".modal-backdrop.show")) return;
+
+      limpiarSeleccionTabla();
+    });
+  });
+</script>
+
+{% endblock %}

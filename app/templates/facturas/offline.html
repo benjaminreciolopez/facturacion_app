@@ -1,0 +1,157 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>Facturas guardadas offline</h2>
+
+<p class="text-muted">
+  Estas facturas se han creado sin conexión y están pendientes de sincronizar o
+  ya sincronizadas.
+</p>
+
+<table class="table table-sm" id="tablaOffline">
+  <thead>
+    <tr>
+      <th>Temp ID</th>
+      <th>Fecha creación (local)</th>
+      <th>Estado sync</th>
+      <th>Error</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+  async function sincronizarFactura(item) {
+    try {
+      const res = await fetch("/api/offline/facturas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offline_id: item.temp_id,
+          ...item.data,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(
+          data?.error || data?.detail || "Error desconocido al enviar"
+        );
+      }
+
+      await OfflineDB.marcarComoSincronizada(item.temp_id);
+      return { ok: true };
+    } catch (err) {
+      await OfflineDB.marcarConError(item.temp_id, err.message);
+      return { ok: false, error: err.message };
+    }
+  }
+
+  async function cargarFacturasOffline() {
+    const tbody = document.querySelector("#tablaOffline tbody");
+    tbody.innerHTML = "";
+
+    const todas = await OfflineDB.getTodas();
+
+    if (!todas.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 5;
+      td.className = "text-muted text-center";
+      td.textContent = "No hay facturas offline.";
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    for (const item of todas) {
+      const tr = document.createElement("tr");
+      const fecha = new Date(item.created_at);
+
+      tr.innerHTML = `
+        <td><code>${item.temp_id}</code></td>
+
+        <td>${fecha.toLocaleString("es-ES")}</td>
+
+        <td>
+          ${
+            item.sincronizada
+              ? '<span class="badge bg-success">Sincronizada</span>'
+              : '<span class="badge bg-warning text-dark">Pendiente</span>'
+          }
+        </td>
+
+        <td style="max-width: 260px;">
+          ${
+            item.last_error
+              ? `<span class="text-danger">${item.last_error}</span>`
+              : ""
+          }
+        </td>
+
+        <td>
+          ${
+            item.sincronizada
+              ? ""
+              : `<button class="btn btn-sm btn-outline-primary btn-reintentar" data-id="${item.temp_id}">
+                    Reintentar
+                 </button>`
+          }
+          <button class="btn btn-sm btn-outline-danger btn-borrar ms-1" data-id="${
+            item.temp_id
+          }">
+            Borrar
+          </button>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+    }
+
+    asignarEventosTabla();
+  }
+
+  function asignarEventosTabla() {
+    document.querySelectorAll(".btn-reintentar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        const todas = await OfflineDB.getTodas();
+        const item = todas.find((x) => x.temp_id === id);
+        if (!item) return;
+
+        btn.disabled = true;
+        btn.textContent = "Sincronizando...";
+
+        const result = await sincronizarFactura(item);
+
+        if (!result.ok) {
+          alert("Error al sincronizar: " + result.error);
+        }
+
+        await cargarFacturasOffline();
+      });
+    });
+
+    document.querySelectorAll(".btn-borrar").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+
+        if (
+          !confirm(
+            "Se eliminará definitivamente este borrador offline.\n¿Continuar?"
+          )
+        ) {
+          return;
+        }
+
+        await OfflineDB.borrar(id);
+        await cargarFacturasOffline();
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", cargarFacturasOffline);
+</script>
+
+{% endblock %}

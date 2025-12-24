@@ -1,0 +1,85 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-4">
+  <!-- =========================
+       CABECERA
+  ========================== -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="mb-0">Ranking de clientes</h3>
+      {% set ejercicio = year | default(current_year) %}
+
+      <small class="text-muted"> Ejercicio {{ ejercicio }} </small>
+    </div>
+
+    <div class="d-flex gap-2">
+      <form method="get" class="d-flex">
+        <input
+          type="number"
+          name="year"
+          value="{{ year or '' }}"
+          class="form-control form-control-sm me-2"
+          placeholder="Año"
+          style="width: 90px"
+        />
+        <button class="btn btn-sm btn-outline-primary">Filtrar</button>
+      </form>
+
+      <a
+        href="/informes/clientes-ranking.pdf{% if year %}?year={{ year }}{% endif %}"
+        class="btn btn-sm btn-primary"
+        target="_blank"
+      >
+        Exportar PDF
+      </a>
+    </div>
+  </div>
+
+  <!-- =========================
+       TABLA
+  ========================== -->
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th class="text-end">Facturas</th>
+          <th class="text-end">Base imponible</th>
+          <th class="text-end">IVA</th>
+          <th class="text-end">Total</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% if ranking %} {% for r in ranking %}
+        <tr>
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>{{ r.cliente }}</td>
+          <td class="text-end">{{ r.num_facturas }}</td>
+          <td class="text-end">{{ "%.2f"|format(r.base) }} €</td>
+          <td class="text-end">{{ "%.2f"|format(r.iva) }} €</td>
+          <td class="text-end fw-semibold">{{ "%.2f"|format(r.total) }} €</td>
+        </tr>
+        {% endfor %} {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">
+            No hay datos para los filtros seleccionados.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+
+      {% if ranking %}
+      <tfoot class="table-light">
+        <tr>
+          <th colspan="5" class="text-end">TOTAL FACTURADO</th>
+          <th class="text-end fw-bold">
+            {{ "%.2f"|format(total_facturado) }} €
+          </th>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

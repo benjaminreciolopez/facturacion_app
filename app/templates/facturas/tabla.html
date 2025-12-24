@@ -1,0 +1,144 @@
+{% for f in facturas %} {% set es_rectificativa = f.numero and
+f.numero.endswith('R') %} {% set aud = auditoria_counts.get(f.id) %} {% set
+aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
+= resumen_fiscal.get(f.id) %}
+
+<tr
+  data-factura='{{ {
+    "id": f.id,
+    "numero": f.numero,
+    "cliente": (f.cliente.nombre if f.cliente else "-"),
+    "fecha": (f.fecha.isoformat() if f.fecha else None),
+    "total": f.total,
+    "estado": f.estado,
+    "ruta_pdf": f.ruta_pdf
+  } | tojson | safe }}'
+>
+  <td>{{ f.numero or "Borrador" }}</td>
+
+  <td>{{ f.cliente.nombre if f.cliente else "-" }}</td>
+
+  <td>
+    {% if f.fecha %} {{ f.fecha.strftime("%d/%m/%Y") }} {% else %} - {% endif %}
+  </td>
+
+  <td>
+    {% if f.estado == "BORRADOR" %}
+    <span class="badge bg-secondary">Borrador</span>
+    {% elif f.estado == "VALIDADA" %}
+    <span class="badge bg-success">Validada</span>
+    {% elif f.estado == "ANULADA" %}
+    <span class="badge bg-danger">Anulada</span>
+    {% else %} {{ f.estado }} {% endif %}
+  </td>
+
+  <td>{{ "%.2f"|format(f.total) }} €</td>
+
+  <td>
+    {% if fiscal %} {% if fiscal.estado == "OK" %}
+    <span class="badge bg-success">OK</span>
+    {% elif fiscal.estado == "ADVERTENCIA" %}
+    <span class="badge bg-warning text-dark">Advertencia</span>
+    {% elif fiscal.estado == "ERROR" %}
+    <span class="badge bg-danger">Error</span>
+    {% endif %} {% else %}
+    <span class="text-muted">—</span>
+    {% endif %}
+  </td>
+
+  <td class="acciones text-end" style="visibility: hidden">
+    <div class="acciones-wrap">
+      {% if f.estado == "BORRADOR" %}
+      <a href="/facturas/{{ f.id }}/edit" class="btn btn-sm btn-primary"
+        >Editar</a
+      >
+
+      <a
+        href="/facturas/{{ f.id }}/delete"
+        class="btn btn-sm btn-outline-danger"
+        onclick="return confirm('¿Eliminar factura en borrador?');"
+      >
+        Eliminar
+      </a>
+
+      <button
+        type="button"
+        class="btn btn-sm btn-success btn-validar"
+        data-id="{{ f.id }}"
+      >
+        Validar
+      </button>
+
+      {% elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
+      <a
+        href="{{ f.ruta_pdf }}"
+        class="btn btn-sm btn-outline-secondary"
+        target="_blank"
+      >
+        Ver PDF
+      </a>
+
+      <!-- Solo botón -->
+      <button
+        type="button"
+        class="btn btn-sm btn-primary ms-1 btn-open-email"
+        data-id="{{ f.id }}"
+        data-email="{{ f.cliente.email if f.cliente and f.cliente.email else '' }}"
+        data-numero="{{ f.numero or '' }}"
+      >
+        Enviar por email
+      </button>
+
+      {% else %}
+      <a
+        href="/facturas/{{ f.id }}/generar-pdf"
+        class="btn btn-sm btn-outline-secondary"
+      >
+        Generar PDF
+      </a>
+      {% endif %} {% if not es_rectificativa %}
+      <button
+        type="button"
+        class="btn btn-sm btn-warning btn-anular"
+        data-id="{{ f.id }}"
+      >
+        Anular
+      </button>
+      {% endif %} {% elif f.estado == "ANULADA" %} {% if f.ruta_pdf %}
+      <a
+        href="{{ f.ruta_pdf }}"
+        class="btn btn-sm btn-outline-secondary"
+        target="_blank"
+      >
+        Ver PDF
+      </a>
+
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary ms-1 btn-open-email"
+        data-id="{{ f.id }}"
+        data-email="{{ f.cliente.email if f.cliente and f.cliente.email else '' }}"
+        data-numero="{{ f.numero or '' }}"
+      >
+        Enviar por email
+      </button>
+      {% endif %}
+
+      <hr class="my-1" />
+
+      <a
+        href="/auditoria?entidad=FACTURA&entidad_id={{ f.id }}"
+        class="btn btn-sm btn-outline-dark"
+      >
+        Auditoría{% if aud_total > 0 %} ({{ aud_total }}){% endif %}
+      </a>
+
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endfor %} {% if facturas|length == 0 %}
+<tr>
+  <td colspan="7" class="text-center text-muted">No hay facturas aún</td>
+</tr>
+{% endif %}

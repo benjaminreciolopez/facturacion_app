@@ -1,0 +1,36 @@
+{% for c in clientes %}
+<tr
+  data-cliente='{
+    "id": "{{ c.id }}",
+    "nombre": {{ c.nombre | tojson }},
+    "nif": {{ c.nif | tojson }},
+    "email": "{{ c.email or "" }}",
+    "telefono": "{{ c.telefono or "" }}",
+    "direccion": "{{ c.direccion or "" }}",
+    "poblacion": "{{ c.poblacion or "" }}",
+    "provincia": "{{ c.provincia or "" }}",
+    "cp": "{{ c.cp or "" }}",
+    "pais": "{{ c.pais or "" }}",
+    "fecha_alta": "{{ c.fecha_alta }}"
+  }'
+>
+  <td>{{ c.nombre }}</td>
+  <td>{{ c.nif or "-" }}</td>
+  <td>{{ c.telefono or "-" }}</td>
+  <td>{{ c.poblacion or "-" }}</td>
+  <td>{{ c.fecha_alta.strftime("%d/%m/%Y") }}</td>
+
+  <td class="text-end acciones" style="visibility: hidden">
+    <a href="/clientes/{{ c.id }}/edit" class="btn btn-sm btn-primary"
+      >Editar</a
+    >
+    <a
+      href="/clientes/{{ c.id }}/delete"
+      class="btn btn-sm btn-danger"
+      onclick="return confirm('¿Eliminar cliente?');"
+    >
+      Eliminar
+    </a>
+  </td>
+</tr>
+{% endfor %}

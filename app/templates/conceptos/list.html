@@ -1,0 +1,192 @@
+{% extends "base.html" %} {% block content %}
+<h2>Conceptos</h2>
+
+<div class="d-flex justify-content-between mb-3">
+  <input
+    type="text"
+    id="searchInput"
+    class="form-control w-25"
+    placeholder="Buscar por nombre o descripción..."
+    style="cursor: pointer"
+  />
+
+  <a href="/conceptos/form" class="btn btn-success">Nuevo Concepto</a>
+</div>
+
+<table class="table table-hover" id="tablaConceptos">
+  <thead>
+    <tr>
+      <th>Nombre</th>
+      <th>Descripción</th>
+      <th>Fecha</th>
+      <th class="text-end">Acciones</th>
+    </tr>
+  </thead>
+
+  <tbody id="conceptosTabla">
+    {% include "conceptos/tabla.html" %}
+  </tbody>
+</table>
+
+<!-- MODAL DETALLE -->
+<div id="conceptoModal" class="modal-overlay" style="display: none">
+  <div class="modal-dialog-custom">
+    <h4 id="modalNombre" class="mb-3"></h4>
+
+    <p><strong>Descripción:</strong></p>
+    <p id="modalDescripcion" style="white-space: pre-line"></p>
+
+    <p><strong>Fecha creación:</strong> <span id="modalFecha"></span></p>
+
+    <div class="mt-3 text-end">
+      <a id="btnEditarModal" class="btn btn-primary">Editar</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .selected-row {
+    background-color: #e8f2ff !important;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 8vh;
+    z-index: 1050;
+  }
+
+  .modal-dialog-custom {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px 24px;
+    min-width: 360px;
+    max-width: 560px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  #tablaConceptos tr {
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  /* ============================================================
+     SELECCIÓN DE FILAS Y MODAL DE DETALLE
+  ============================================================ */
+
+  function attachRowHandlers() {
+    const rows = document.querySelectorAll("#conceptosTabla tr[data-concepto]");
+    const accionesTodas = document.querySelectorAll(
+      "#conceptosTabla .acciones"
+    );
+
+    rows.forEach((row) => {
+      const data = JSON.parse(row.dataset.concepto);
+
+      row.addEventListener("click", () => {
+        // Quitar selección previa
+        document
+          .querySelectorAll("#conceptosTabla tr")
+          .forEach((r) => r.classList.remove("selected-row"));
+        accionesTodas.forEach((c) => (c.style.visibility = "hidden"));
+
+        // Activar fila actual
+        row.classList.add("selected-row");
+        const acciones = row.querySelector(".acciones");
+        if (acciones) acciones.style.visibility = "visible";
+      });
+
+      row.addEventListener("dblclick", () => {
+        const modal = document.getElementById("conceptoModal");
+
+        document.getElementById("modalNombre").innerText = data.nombre || "-";
+        document.getElementById("modalDescripcion").innerText =
+          data.descripcion || "-";
+
+        let fecha = "-";
+        if (data.fecha_creacion) {
+          try {
+            fecha = new Date(data.fecha_creacion).toLocaleDateString("es-ES");
+          } catch {}
+        }
+        document.getElementById("modalFecha").innerText = fecha;
+
+        document.getElementById(
+          "btnEditarModal"
+        ).href = `/conceptos/${data.id}/edit`;
+
+        modal.style.display = "flex";
+      });
+    });
+  }
+
+  function attachModalClose() {
+    const modal = document.getElementById("conceptoModal");
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  }
+
+  /* ============================================================
+     DEBOUNCE
+  ============================================================ */
+
+  function debounce(fn, delay) {
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  /* ============================================================
+     BÚSQUEDA AJAX
+  ============================================================ */
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("searchInput");
+    const tabla = document.getElementById("conceptosTabla");
+
+    const buscar = async () => {
+      const q = search.value || "";
+      const resp = await fetch(`/conceptos/search?q=${encodeURIComponent(q)}`);
+      tabla.innerHTML = await resp.text();
+
+      // Reasignar filas nuevas
+      attachRowHandlers();
+    };
+
+    search.addEventListener("keyup", debounce(buscar, 200));
+
+    attachRowHandlers();
+    attachModalClose();
+
+    /* ================================================
+       DESELECCIONAR AL HACER CLIC FUERA DE LA TABLA
+    ================================================ */
+    document.addEventListener("click", (e) => {
+      const tablaEl = document.getElementById("tablaConceptos");
+      const modal = document.getElementById("conceptoModal");
+
+      const clicEnTabla = tablaEl.contains(e.target);
+      const clicEnModal = modal.contains(e.target);
+
+      if (!clicEnTabla && !clicEnModal) {
+        document
+          .querySelectorAll("#conceptosTabla tr")
+          .forEach((r) => r.classList.remove("selected-row"));
+
+        document
+          .querySelectorAll("#conceptosTabla .acciones")
+          .forEach((c) => (c.style.visibility = "hidden"));
+      }
+    });
+  });
+</script>
+
+{% endblock %}

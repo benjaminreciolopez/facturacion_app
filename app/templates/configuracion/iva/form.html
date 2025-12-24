@@ -1,0 +1,13 @@
+<div class="row justify-content-end mt-4">
+
+  <div class="col-md-3 mb-3">
+    <label class="form-label">IVA aplicado</label>
+    <select name="iva_global" id="ivaGlobalSelect" class="form-select">
+      {% for iva in ivas %}
+        <option value="{{ iva.porcentaje }}"
+          {% if factura and factura.iva == iva.porcentaje %}selected{% endif %}>
+          {{ iva.porcentaje }}% — {{ iva.descripcion }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>

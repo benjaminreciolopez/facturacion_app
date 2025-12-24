@@ -1,0 +1,21 @@
+<form method="get" class="row g-2 align-items-end mb-4">
+  {% set cy = current_year | default(2025) %}
+  {% set selected_year = year | default(cy) %}
+
+  <div class="col-auto">
+    <label class="form-label">Año</label>
+    <select name="year" class="form-select">
+      {% for y in range(cy, cy - 6, -1) %}
+        <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>
+          {{ y }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">
+      Aplicar
+    </button>
+  </div>
+</form>

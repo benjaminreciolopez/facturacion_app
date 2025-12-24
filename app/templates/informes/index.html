@@ -1,0 +1,186 @@
+{% extends "base.html" %} {% block content %}
+<div class="container mt-4">
+  <!-- =========================
+       CABECERA
+  ========================== -->
+  <div class="mb-4">
+    <h2 class="mb-1">Informes y exportaciones</h2>
+    <p class="text-muted mb-0">
+      Acceso a listados, informes fiscales y análisis de facturación.
+    </p>
+  </div>
+
+  <!-- =========================
+       EXPORTACIONES BÁSICAS
+  ========================== -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Exportaciones básicas</div>
+    <div class="card-body">
+      <h6 class="text-muted">Clientes</h6>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <a
+          href="/informes/export/clientes.csv"
+          class="btn btn-outline-primary btn-sm"
+          >CSV</a
+        >
+        <a
+          href="/informes/export/clientes.xlsx"
+          class="btn btn-outline-success btn-sm"
+          >Excel</a
+        >
+        <a
+          href="/informes/export/clientes.pdf"
+          class="btn btn-outline-danger btn-sm"
+          target="_blank"
+          >PDF</a
+        >
+      </div>
+
+      <h6 class="text-muted">Facturas</h6>
+      <div class="d-flex flex-wrap gap-2">
+        <a
+          href="/informes/export/facturas.csv"
+          class="btn btn-outline-primary btn-sm"
+          >CSV</a
+        >
+        <a
+          href="/informes/export/facturas.pdf"
+          class="btn btn-outline-danger btn-sm"
+          target="_blank"
+          >PDF</a
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================
+       INFORMES DE FACTURACIÓN
+  ========================== -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Facturación</div>
+    <div class="card-body">
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item">
+          Facturación mensual
+          <a href="/informes/mensual">HTML</a>
+          · <a href="/informes/mensual.pdf" target="_blank">PDF</a>
+        </li>
+
+        <li class="list-group-item">
+          Facturación anual
+          <a href="/informes/facturacion/anual?year={{ current_year }}">HTML</a>
+          ·
+          <a
+            href="/informes/facturacion/anual.pdf?year={{ current_year }}"
+            target="_blank"
+            >PDF</a
+          >
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- =========================
+     INFORMES DE IVA
+========================== -->
+<div class="card mb-4">
+  <div class="card-header fw-semibold">IVA</div>
+  <div class="card-body">
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item">
+        Resumen de IVA
+        · <a href="/informes/iva">HTML</a>
+        · <a href="/informes/iva.pdf" target="_blank">PDF</a>
+      </li>
+
+<li class="list-group-item">
+  IVA trimestral
+
+  <form
+    class="d-inline-block ms-2"
+    method="get"
+    action="/informes/iva/trimestral"
+    id="formTrimestre"
+  >
+    <select
+      name="year"
+      id="ivaYear"
+      class="form-select form-select-sm d-inline-block w-auto"
+    >
+      {% for y in range(current_year, current_year-5, -1) %}
+      <option
+        value="{{ y }}"
+        {% if y == current_year %}selected{% endif %}
+      >
+        {{ y }}
+      </option>
+      {% endfor %}
+    </select>
+
+    <select
+      name="trimestre"
+      id="ivaTrim"
+      class="form-select form-select-sm d-inline-block w-auto ms-1"
+    >
+      {% for t in [1,2,3,4] %}
+      <option value="{{ t }}">T{{ t }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn btn-sm btn-outline-primary ms-1" type="submit">
+      Ver
+    </button>
+  </form>
+
+  ·
+  <a
+    id="linkPDFIva"
+    href="/informes/iva/trimestral.pdf?year={{ current_year }}&trimestre=1"
+    target="_blank"
+  >
+    Descargar PDF
+  </a>
+</li>
+
+<script>
+  function actualizarLinkPDF() {
+    const year = document.getElementById("ivaYear").value;
+    const trim = document.getElementById("ivaTrim").value;
+
+    document.getElementById(
+      "linkPDFIva"
+    ).href = `/informes/iva/trimestral.pdf?year=${year}&trimestre=${trim}`;
+  }
+
+  document.getElementById("ivaYear").addEventListener("change", actualizarLinkPDF);
+  document.getElementById("ivaTrim").addEventListener("change", actualizarLinkPDF);
+
+  actualizarLinkPDF();
+</script>
+
+  <!-- =========================
+       INFORMES DE CLIENTES
+  ========================== -->
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Clientes</div>
+    <div class="card-body">
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item">
+          Ranking de clientes (por facturación)
+          <a href="/informes/clientes-ranking">HTML</a>
+          · <a href="/informes/clientes-ranking.pdf" target="_blank">PDF</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- =========================
+       NOTA FINAL
+  ========================== -->
+  <div class="alert alert-light border">
+    <strong>Consejo:</strong>
+    Los informes en PDF están optimizados para impresión directa o envío a
+    gestoría.
+  </div>
+</div>
+{% endblock %}

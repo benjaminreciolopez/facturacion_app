@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+
+    <link rel="manifest" href="/static/manifest.json" />
+
+    <meta name="theme-color" content="#2563eb" />
+
+    <link rel="apple-touch-icon" href="/static/pwa/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+
+    <meta charset="UTF-8" />
+    <title>{{ title or "Facturación" }}</title>
+
+    <link href="/static/style.css" rel="stylesheet" />
+
+    <script>
+      function notificar(titulo, cuerpo) {
+        if (!("Notification" in window)) {
+          console.warn("⚠️ Notificaciones no soportadas");
+          return;
+        }
+
+        if (Notification.permission === "granted") {
+          new Notification(titulo, {
+            body: cuerpo,
+            icon: "/static/pwa/icon-192.png",
+          });
+          return;
+        }
+
+        if (Notification.permission === "default") {
+          Notification.requestPermission().then((p) => {
+            if (p === "granted") {
+              new Notification(titulo, {
+                body: cuerpo,
+                icon: "/static/pwa/icon-192.png",
+              });
+            }
+          });
+        }
+      }
+    </script>
+    <script src="/static/js/offline_db.js"></script>
+    <script src="/static/js/offline_sync.js"></script>
+    <script src="/static/htmx.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    />
+  </head>
+
+  <body
+    class="bg-gray-100 text-gray-900 flex relative overflow-x-hidden overflow-y-auto min-h-screen"
+  >
+    <!-- DECOR -->
+    <div
+      class="absolute -top-28 -left-36 w-[500px] h-[500px] bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-full blur-3xl opacity-30"
+    ></div>
+
+    <!-- ====================== SIDEBAR ====================== -->
+    <aside
+      class="relative z-10 w-64 min-h-screen p-6 bg-white shadow-xl border-r border-gray-200/70 overflow-hidden"
+    >
+      <div class="absolute inset-0 pointer-events-none">
+        <div
+          class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-blue-200/40 via-indigo-300/35 to-transparent rounded-3xl blur-[35px]"
+        ></div>
+
+        <div
+          class="absolute top-10 left-10 w-52 h-52 bg-indigo-500/35 rounded-[55%_45%_60%_40%] blur-[40px]"
+        ></div>
+      </div>
+
+      <h1 class="text-xl font-bold mb-8 relative z-10 tracking-wide">
+        FACTURACIÓN
+      </h1>
+
+      <nav class="flex flex-col space-y-3 relative z-10">
+        {% if request.url.path != '/dashboard' %}
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        {% endif %}
+
+        <a href="/clientes" class="nav-link">Clientes</a>
+        <a href="/conceptos" class="nav-link">Conceptos</a>
+        <a href="/facturas" class="nav-link">Facturas</a>
+        <a href="/informes" class="nav-link">Informes y Exportación</a>
+        <a href="/auditoria" class="nav-link">Auditoría</a>
+
+        <div class="relative mt-4 select-none" id="configMenu">
+          <div
+            id="configBtn"
+            class="hover:text-blue-700 cursor-pointer flex items-center justify-between pr-2"
+          >
+            <span class="font-medium">Configuración</span>
+            <span class="text-gray-500 transition" id="arrow">▾</span>
+          </div>
+
+          <div
+            id="configSubmenu"
+            class="hidden absolute left-0 top-7 w-60 bg-white/95 backdrop-blur-md border border-gray-200 shadow-2xl rounded-2xl p-1 z-50"
+          >
+            <a href="/configuracion/emisor" class="submenu-item">
+              Datos del emisor
+            </a>
+            <a href="/configuracion/iva" class="submenu-item"> IVA </a>
+            <a href="/configuracion/sistema" class="submenu-item"> Sistema </a>
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- ====================== CONTENIDO + HEADER ====================== -->
+    <div class="flex-1 relative z-10">
+      <!-- ===== HEADER SUPERIOR ===== -->
+      <header
+        class="bg-white shadow flex justify-between items-center px-6 py-3"
+      >
+        <!-- ===== LADO IZQUIERDO (NUNCA MUESTRA LOGO) ===== -->
+        <div class="flex items-center gap-3">
+          <span class="font-semibold">Sistema Facturación</span>
+        </div>
+
+        <!-- ===== LADO DERECHO USUARIO ===== -->
+        {% set u = get_user(request) %} {% if u %} {% set logo =
+        get_emisor_logo() %}
+        <div class="flex items-center gap-4">
+          <div class="text-end">
+            <div class="font-semibold">{{ u.email }}</div>
+            <div class="text-gray-500 text-sm">{{ u.rol|upper }}</div>
+          </div>
+
+          <div class="relative">
+            <button id="userMenuBtn" class="flex items-center">
+              {% if logo %}
+              <img
+                src="{{ logo }}"
+                class="h-10 w-10 rounded-full border shadow-sm object-cover"
+              />
+              {% else %}
+              <i
+                class="bi bi-person-circle text-3xl text-gray-700 hover:text-blue-600"
+              ></i>
+              {% endif %}
+            </button>
+
+            <div
+              id="userMenu"
+              class="hidden absolute right-0 mt-2 w-44 bg-white shadow-xl rounded-lg border"
+            >
+              <a href="/perfil" class="block px-4 py-2 hover:bg-gray-100">
+                Perfil
+              </a>
+              <hr />
+              <a href="/logout" class="block px-4 py-2 hover:bg-gray-100">
+                Cerrar sesión
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {% else %}
+
+        <a
+          href="/login"
+          class="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow"
+        >
+          Iniciar sesión
+        </a>
+
+        {% endif %}
+
+        <script>
+          document.getElementById("userMenuBtn").onclick = () =>
+            document.getElementById("userMenu").classList.toggle("hidden");
+        </script>
+
+        <script>
+          const configBtn = document.getElementById("configBtn");
+          const submenu = document.getElementById("configSubmenu");
+          const arrow = document.getElementById("arrow");
+
+          if (configBtn) {
+            configBtn.addEventListener("click", () => {
+              submenu.classList.toggle("hidden");
+              arrow.textContent = submenu.classList.contains("hidden")
+                ? "▾"
+                : "▴";
+            });
+
+            document.addEventListener("click", (e) => {
+              if (!document.getElementById("configMenu").contains(e.target)) {
+                submenu.classList.add("hidden");
+                arrow.textContent = "▾";
+              }
+            });
+          }
+        </script>
+      </header>
+
+      <main class="p-10">{% block content %}{% endblock %}</main>
+    </div>
+
+    <style>
+      /* ===============================
+   SUBMENU CONFIGURACIÓN (AZUL)
+   =============================== */
+      #configSubmenu {
+        /* tamaño */
+        width: 260px;
+
+        /* ---- FONDO IGUAL QUE SIDEBAR ---- */
+        background: linear-gradient(
+          135deg,
+          rgba(127, 170, 240, 0.92),
+          rgba(108, 110, 218, 0.92),
+          rgba(144, 100, 219, 0.92)
+        );
+
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        box-shadow: 0 25px 35px rgba(0, 0, 0, 0.25);
+
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+
+        padding: 6px;
+
+        /* transición al mostrar */
+        transition: opacity 0.25s ease, transform 0.25s ease;
+      }
+
+      /* Cuando NO tiene hidden → visible */
+      #configSubmenu:not(.hidden) {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      /* Cuando está oculto */
+      #configSubmenu.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(8px);
+      }
+
+      /* ===== Items ===== */
+      .submenu-item {
+        display: block;
+        padding: 10px 14px;
+        border-radius: 12px;
+        color: white;
+        transition: 0.2s;
+      }
+
+      .submenu-item:hover {
+        background: rgba(255, 255, 255, 0.18);
+        color: white;
+      }
+    </style>
+    <div class="modal fade" id="emailFacturaModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Enviar factura por email</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+
+          <div class="modal-body">
+            <div class="mb-3">
+              <label>Para</label>
+              <input
+                type="email"
+                id="emailPara"
+                class="form-control"
+                required
+              />
+            </div>
+
+            <div class="mb-3">
+              <label>CC</label>
+              <input type="text" id="emailCC" class="form-control" />
+            </div>
+
+            <div class="mb-3">
+              <label>Asunto</label>
+              <input type="text" id="emailAsunto" class="form-control" />
+            </div>
+
+            <div class="mb-3">
+              <label>Mensaje</label>
+              <textarea
+                id="emailCuerpo"
+                class="form-control"
+                rows="6"
+              ></textarea>
+            </div>
+
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                id="emailAdjunto"
+                type="checkbox"
+                checked
+              />
+              <label class="form-check-label">Adjuntar PDF factura</label>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">
+              Cancelar
+            </button>
+            <button class="btn btn-primary" onclick="enviarFacturaEmail()">
+              Enviar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", async () => {
+          try {
+            const reg = await navigator.serviceWorker.register("/sw.js");
+
+            if (
+              "Notification" in window &&
+              Notification.permission === "default"
+            ) {
+              await Notification.requestPermission();
+            }
+
+            if ("SyncManager" in window && navigator.onLine) {
+              try {
+                await reg.sync.register("sync-facturas-offline");
+              } catch (err) {
+                console.warn("Background Sync no disponible:", err);
+              }
+            }
+          } catch (err) {
+            console.error("Error registrando Service Worker:", err);
+          }
+        });
+      }
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("message", async (event) => {
+          if (!event.data?.type) return;
+
+          if (event.data.type === "offline-synced") {
+            console.log("Factura offline sincronizada, refrescando UI…");
+
+            if (window.location.pathname === "/facturas") {
+              location.reload();
+            }
+
+            if (
+              window.location.pathname === "/facturas/offline" &&
+              typeof cargarFacturasOffline === "function"
+            ) {
+              await cargarFacturasOffline();
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

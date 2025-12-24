@@ -1,0 +1,22 @@
+<hr />
+<h3>Seguridad de Sesión</h3>
+
+<div class="mb-3">
+  <label class="form-label">
+    Tiempo de expiración de sesión por inactividad (minutos)
+  </label>
+
+  <input
+    type="number"
+    class="form-control"
+    name="seguridad_login_timeout_min"
+    min="0"
+    value="{{ emisor.seguridad_login_timeout_min or 0 }}"
+  />
+
+  <small class="text-muted">
+    0 = desactivado (la sesión no expira nunca). Si estableces un valor, el
+    usuario deberá volver a iniciar sesión al pasar ese tiempo sin actividad,
+    sin necesidad de PIN.
+  </small>
+</div>

@@ -1,0 +1,13 @@
+{% extends "base.html" %} {% block content %}
+
+<div class="max-w-lg mx-auto bg-white p-8 rounded-xl shadow">
+  <h2 class="text-xl font-bold text-red-600 mb-4">
+    Enlace no válido o caducado
+  </h2>
+
+  <p class="text-gray-600 mb-4">Puede haber expirado o ya fue utilizado.</p>
+
+  <a href="/forgot-password" class="btn-primary"> Generar un nuevo enlace </a>
+</div>
+
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %} {% block content %}
+
+<h2 class="mb-3">Facturación anual {{ year }}</h2>
+
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body">
+        <small>Total facturas</small>
+        <h4>{{ total_facturas }}</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body">
+        <small>Base</small>
+        <h4>{{ total_base }} €</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-body">
+        <small>IVA</small>
+        <h4>{{ total_iva }} €</h4>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-success">
+      <div class="card-body">
+        <small>Total</small>
+        <h4>{{ total }} €</h4>
+      </div>
+    </div>
+  </div>
+</div>
+
+<table class="table table-hover">
+  <thead>
+    <tr>
+      <th>Mes</th>
+      <th>Facturas</th>
+      <th>Base</th>
+      <th>IVA</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in meses %}
+    <tr>
+      <td>{{ "%02d"|format(m.mes) }}</td>
+      <td>{{ m.facturas }}</td>
+      <td>{{ m.base }} €</td>
+      <td>{{ m.iva }} €</td>
+      <td class="fw-semibold">{{ m.total }} €</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-6">Panel de Control</h2>
+
+<!-- ========================= -->
+<!-- ALERTAS -->
+<!-- ========================= -->
+{% if alertas %}
+  <div class="space-y-3 mb-6">
+    {% for a in alertas %}
+
+      {% set estilos = {
+        'error':   'bg-red-50 border-red-200 text-red-800',
+        'warning': 'bg-yellow-50 border-yellow-200 text-yellow-900',
+        'info':    'bg-blue-50 border-blue-200 text-blue-800'
+      } %}
+
+      {% set iconos = {
+        'error':   '❌',
+        'warning': '⚠️',
+        'info':    'ℹ️'
+      } %}
+
+      <div class="border rounded-lg p-4 flex items-start gap-4 shadow-sm {{ estilos[a.tipo] }}">
+        
+        <!-- ICONO -->
+        <div class="text-2xl leading-none">
+          {{ iconos[a.tipo] }}
+        </div>
+
+        <!-- MENSAJE -->
+        <div class="flex-1">
+          <p class="font-semibold text-sm uppercase tracking-wide">
+            {% if a.tipo == 'error' %} Error crítico
+            {% elif a.tipo == 'warning' %} Aviso importante
+            {% else %} Información
+            {% endif %}
+          </p>
+
+          <p class="mt-1 text-sm leading-relaxed">
+            {{ a.mensaje }}
+          </p>
+        </div>
+
+        {% if a.accion %}
+        <a
+          href="{{ a.accion.url }}"
+          class="font-semibold underline hover:opacity-80 text-sm whitespace-nowrap"
+        >
+          {{ a.accion.texto }}
+        </a>
+        {% endif %}
+      </div>
+
+    {% endfor %}
+  </div>
+{% endif %}
+
+<!-- ========================= -->
+<!-- KPIs -->
+<!-- ========================= -->
+<div class="grid grid-cols-3 gap-6 mb-10">
+  <div class="bg-white p-5 rounded shadow">
+    <p class="text-gray-500 text-sm">Facturación anual</p>
+    <p class="text-3xl font-bold" id="kpi-total-anual"></p>
+  </div>
+
+  <div class="bg-white p-5 rounded shadow">
+    <p class="text-gray-500 text-sm">Facturas emitidas</p>
+    <p class="text-3xl font-bold">{{ facturas_total }}</p>
+  </div>
+
+  <div class="bg-white p-5 rounded shadow">
+    <p class="text-gray-500 text-sm">Comparativa anual</p>
+    <p class="text-lg font-semibold">
+      <span id="kpi-actual"></span>
+      <span class="text-gray-400 text-sm">
+        (<span id="kpi-anterior"></span> año anterior)
+      </span>
+    </p>
+  </div>
+</div>
+
+<!-- ========================= -->
+<!-- FILTROS -->
+<!-- ========================= -->
+<form method="get" class="flex gap-4 mb-6">
+  <select name="cliente_id" class="border rounded px-3 py-2">
+    <option value="">Todos los clientes</option>
+    {% for c in clientes %}
+      <option value="{{ c.id }}" {% if cliente_id == c.id %}selected{% endif %}>
+        {{ c.nombre }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <select name="estado" class="border rounded px-3 py-2">
+    <option value="">Todos los estados</option>
+    {% for e in estados_disponibles %}
+      <option value="{{ e }}" {% if estado == e %}selected{% endif %}>
+        {{ e }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <select name="year" class="border rounded px-3 py-2">
+    {% for y in range(year - 5, year + 1) %}
+      <option value="{{ y }}" {% if y == year %}selected{% endif %}>
+        {{ y }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <button class="bg-blue-600 text-white px-5 rounded">
+    Filtrar
+  </button>
+</form>
+
+<!-- ========================= -->
+<!-- TOAST SIN DATOS -->
+<!-- ========================= -->
+{% if sin_datos %}
+<div
+  id="toast-sin-datos"
+  class="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-3 rounded shadow-lg z-50"
+>
+  No hay datos para los filtros seleccionados
+</div>
+
+<script>
+  setTimeout(() => {
+    const toast = document.getElementById("toast-sin-datos");
+    if (toast) toast.remove();
+  }, 4000);
+</script>
+{% endif %}
+
+<!-- ========================= -->
+<!-- GRÁFICO -->
+<!-- ========================= -->
+<div class="bg-white p-6 rounded shadow">
+  <h3 class="font-semibold mb-4">Facturación mensual</h3>
+  <canvas id="graficoMensual"></canvas>
+</div>
+<script id="kpi-data" type="application/json">
+{
+  "total": {{ total_anual | tojson }},
+  "actual": {{ comparativa.actual | tojson }},
+  "anterior": {{ comparativa.anterior | tojson }}
+}
+</script>
+
+<!-- ========================= -->
+<!-- DATOS JSON -->
+<!-- ========================= -->
+<script id="dashboard-data" type="application/json">
+{
+  "meses": {{ meses | tojson }},
+  "totales": {{ totales | tojson }}
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// ===== FORMATEO EURO =====
+function formatEuro(value) {
+  try {
+    return new Intl.NumberFormat("es-ES", {
+      style: "currency",
+      currency: "EUR"
+    }).format(value ?? 0);
+  } catch {
+    return value + " €";
+  }
+}
+
+// ===== KPIs =====
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    const raw = document.getElementById("kpi-data")?.textContent || "{}";
+    const data = JSON.parse(raw);
+
+    document.getElementById("kpi-total-anual").textContent = formatEuro(data.total);
+    document.getElementById("kpi-actual").textContent = formatEuro(data.actual);
+    document.getElementById("kpi-anterior").textContent = formatEuro(data.anterior);
+  } catch (e) {}
+});
+</script>
+
+<script>
+// ===== GRÁFICO =====
+(() => {
+  const el = document.getElementById("dashboard-data");
+  if (!el) return;
+
+  const data = JSON.parse(el.textContent || "{}");
+  if (!data.meses || data.meses.length === 0) return;
+
+  const mesesNombre = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+  new Chart(document.getElementById("graficoMensual"), {
+    type: "bar",
+    data: {
+      labels: data.meses.map(m => mesesNombre[m - 1]),
+      datasets: [{
+        data: data.totales,
+        backgroundColor: "rgba(37,99,235,.7)",
+        borderColor: "rgba(37,99,235,1)",
+        borderWidth: 1.5
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => formatEuro(ctx.raw)
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: value => formatEuro(value)
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+<script src="/static/js/offline_db.js"></script>
+
+
+{% endblock %}

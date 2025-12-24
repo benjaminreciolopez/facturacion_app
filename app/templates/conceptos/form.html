@@ -1,0 +1,147 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>{% if concepto %} Editar concepto {% else %} Nuevo concepto {% endif %}</h2>
+
+<form
+  method="post"
+  action="{% if concepto %}/conceptos/{{ concepto.id }}/edit{% else %}/conceptos/create{% endif %}"
+  id="conceptoForm"
+>
+  <div class="mb-3">
+    <label for="nombre" class="form-label">Nombre</label>
+    <div class="input-group">
+      <input
+        type="text"
+        id="nombre"
+        name="nombre"
+        class="form-control"
+        required
+        value="{{ concepto.nombre if concepto else '' }}"
+      />
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        id="btnSugerirNombre"
+        title="Sugerir nombre a partir de la descripción"
+      >
+        IA nombre
+      </button>
+    </div>
+    <div class="form-text">
+      La IA propondrá un título más claro usando la descripción inferior.
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label for="descripcion" class="form-label">Descripción</label>
+    <div class="input-group">
+      <textarea
+        id="descripcion"
+        name="descripcion"
+        class="form-control"
+        rows="6"
+      >
+{{ concepto.descripcion if concepto else "" }}</textarea
+      >
+
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        id="btnMejorarDescripcion"
+        title="Mejorar redacción de la descripción"
+      >
+        IA mejorar
+      </button>
+    </div>
+    <div class="form-text">
+      Aquí puedes describir el servicio/trabajo de forma libre. El botón de IA
+      pulirá el texto.
+    </div>
+  </div>
+
+  <div class="mt-4 d-flex justify-content-between">
+    <a href="/conceptos" class="btn btn-secondary">Volver</a>
+    <button type="submit" class="btn btn-primary">
+      {% if concepto %}Guardar cambios{% else %}Guardar concepto{% endif %}
+    </button>
+  </div>
+</form>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const btnSugerirNombre = document.getElementById("btnSugerirNombre");
+    const btnMejorarDesc = document.getElementById("btnMejorarDescripcion");
+    const inputNombre = document.getElementById("nombre");
+    const txtDescripcion = document.getElementById("descripcion");
+
+    async function callApi(url, payload) {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        console.error("Error en llamada IA:", resp.status);
+        alert("No se ha podido usar la IA en este momento.");
+        return null;
+      }
+      return await resp.json();
+    }
+
+    // IA: sugerir nombre
+    btnSugerirNombre.addEventListener("click", async () => {
+      const descripcion = txtDescripcion.value.trim();
+      if (!descripcion) {
+        alert(
+          "Escribe primero una descripción para que la IA sugiera un nombre."
+        );
+        return;
+      }
+
+      btnSugerirNombre.disabled = true;
+      btnSugerirNombre.textContent = "Pensando...";
+
+      try {
+        const data = await callApi("/conceptos/ai/sugerir-nombre", {
+          descripcion,
+        });
+        if (data && data.nombre_sugerido) {
+          inputNombre.value = data.nombre_sugerido;
+        }
+      } finally {
+        btnSugerirNombre.disabled = false;
+        btnSugerirNombre.textContent = "IA nombre";
+      }
+    });
+
+    // IA: mejorar descripción
+    btnMejorarDesc.addEventListener("click", async () => {
+      const descripcion = txtDescripcion.value.trim();
+      if (!descripcion) {
+        alert("Escribe primero una descripción para que la IA la mejore.");
+        return;
+      }
+
+      btnMejorarDesc.disabled = true;
+      btnMejorarDesc.textContent = "Mejorando...";
+
+      try {
+        const data = await callApi("/conceptos/ai/mejorar-descripcion", {
+          descripcion,
+          nombre: inputNombre.value || null,
+        });
+        if (data && data.descripcion_mejorada) {
+          txtDescripcion.value = data.descripcion_mejorada;
+        }
+      } finally {
+        btnMejorarDesc.disabled = false;
+        btnMejorarDesc.textContent = "IA mejorar";
+      }
+    });
+  });
+</script>
+
+{% endblock %}

@@ -1,0 +1,1053 @@
+{% extends "base.html" %} {% block content %}
+
+<script id="iva-data" type="application/json">
+  {{ ivas | tojson | safe }}
+</script>
+
+<script>
+  let IVA_LIST = JSON.parse(document.getElementById("iva-data").textContent);
+</script>
+
+<h2>{% if factura %}Editar factura{% else %}Nueva factura{% endif %}</h2>
+
+{% if factura %}
+<script id="lineas-data" type="application/json">
+  {{ lineas | tojson | safe }}
+</script>
+{% else %}
+<script id="lineas-data" type="application/json">
+  []
+</script>
+{% endif %}
+
+<div
+  class="alert alert-info mb-3"
+  id="numeroPreviewBox"
+  style="display: none !important"
+>
+  Número de factura: <strong id="numeroPreview"></strong>
+</div>
+<!-- ===========================================================
+     MODAL NUEVO CLIENTE COMPLETO
+=========================================================== -->
+<div
+  id="modalNuevoCliente"
+  class="fixed inset-0 bg-black/40 hidden items-center justify-center"
+  style="z-index: 6000; backdrop-filter: blur(2px)"
+>
+  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-2xl">
+    <h3 class="text-xl font-semibold mb-4">Nuevo cliente</h3>
+
+    <form id="formNuevoCliente" class="grid grid-cols-2 gap-4">
+      <div class="col-span-2">
+        <label class="font-semibold">Nombre / Razón social</label>
+        <input type="text" name="nombre" class="form-control" required />
+      </div>
+
+      <div>
+        <label class="font-semibold">NIF / CIF</label>
+        <input type="text" name="nif" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Email</label>
+        <input type="email" name="email" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Teléfono</label>
+        <input type="text" name="telefono" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Código Postal</label>
+        <input type="text" name="cp" class="form-control" />
+      </div>
+
+      <div class="col-span-2">
+        <label class="font-semibold">Dirección</label>
+        <input type="text" name="direccion" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Población</label>
+        <input type="text" name="poblacion" class="form-control" />
+      </div>
+
+      <div>
+        <label class="font-semibold">Provincia</label>
+        <input type="text" name="provincia" class="form-control" />
+      </div>
+
+      <div class="col-span-2">
+        <label class="font-semibold">País</label>
+        <input type="text" name="pais" class="form-control" value="España" />
+      </div>
+
+      <div class="col-span-2 flex justify-end gap-2 mt-4">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="cerrarModalNuevoCliente()"
+        >
+          Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary ml-2">Guardar</button>
+      </div>
+    </form>
+
+    <div id="nuevoClienteMsg" class="mt-3 text-sm"></div>
+  </div>
+</div>
+
+<form
+  id="facturaForm"
+  method="post"
+  action="{% if factura %}/facturas/{{ factura.id }}/edit{% else %}/facturas/create{% endif %}"
+>
+  <div class="row mb-3">
+    <!-- CLIENTE -->
+    <div class="col-md-4 position-relative">
+      <label class="form-label">Cliente</label>
+
+      <div class="d-flex gap-2">
+        <input
+          type="text"
+          id="clienteInput"
+          class="form-control"
+          style="width: 420px"
+          placeholder="Buscar cliente..."
+          autocomplete="off"
+          required
+          value="{% if factura %}{{ factura.cliente.nombre }}{% endif %}"
+          {%
+          if
+          bloqueada
+          %}readonly{%
+          endif
+          %}
+        />
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="abrirModalNuevoCliente()"
+          {%
+          if
+          bloqueada
+          %}disabled
+          style="pointer-events: none; opacity: 0.5"
+          {%
+          endif
+          %}
+        >
+          +
+        </button>
+      </div>
+
+      <input
+        type="hidden"
+        name="cliente_id"
+        id="clienteId"
+        value="{{ factura.cliente_id if factura else '' }}"
+        {%
+        if
+        bloqueada
+        %}readonly{%
+        endif
+        %}
+      />
+
+      <ul
+        id="clienteDropdown"
+        class="list-group"
+        style="
+          position: absolute;
+          width: 100%;
+          z-index: 3000;
+          display: none;
+          max-height: 250px;
+          overflow-y: auto;
+          background: white;
+          border: 1px solid #ced4da;
+        "
+      ></ul>
+    </div>
+
+    <!-- FECHA -->
+    <div class="col-md-2">
+      <label class="form-label">Fecha</label>
+      <input
+        type="date"
+        name="fecha"
+        class="form-control"
+        style="width: 160px"
+        required
+        value="{{ factura.fecha if factura else '' }}"
+      />
+    </div>
+
+    <!-- NÚMERO -->
+    <div class="col-md-4">
+      <label class="form-label">Número</label>
+      <input
+        type="text"
+        name="numero"
+        class="form-control"
+        readonly
+        tabindex="-1"
+        style="width: 142px; background: #f0f0f0; cursor: not-allowed"
+        value="{% if factura %}{{ factura.numero }}{% endif %}"
+      />
+    </div>
+  </div>
+
+  <hr />
+
+  <h5>Líneas de factura</h5>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle" id="tablaLineas">
+      <thead>
+        <tr>
+          <th style="width: 40px">Línea</th>
+          <th style="width: 45%">Concepto / Descripción</th>
+          <th style="width: 10%" class="text-end">Cantidad</th>
+          <th style="width: 12%" class="text-end">Precio unidad</th>
+          <th style="width: 12%" class="text-end">Total</th>
+          <th style="width: 10%" class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="lineasBody"></tbody>
+    </table>
+  </div>
+
+  <button
+    type="button"
+    id="btnAddLinea"
+    class="btn btn-outline-secondary btn-sm mt-2"
+    {%
+    if
+    bloqueada
+    %}disabled
+    style="pointer-events: none; opacity: 0.5"
+    {%
+    endif
+    %}
+  >
+    Añadir línea
+  </button>
+  <div class="row justify-content-end mt-4">
+    <div class="col-md-4">
+      <label class="form-label">IVA aplicado</label>
+      <select
+        id="ivaGlobalSelect"
+        class="form-select form-select-sm"
+        onchange="recalcularTotales()"
+      >
+        {% for iva in ivas %}
+        <option value="{{ iva.porcentaje }}">
+          {{ iva.descripcion or iva.porcentaje ~ '%' }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="row justify-content-end mt-4">
+    <div class="col-md-4">
+      <table class="table table-sm">
+        <tr>
+          <th>Subtotal</th>
+          <td class="text-end" id="subtotalDisplay">0,00 €</td>
+        </tr>
+        <tr>
+          <th>IVA</th>
+          <td class="text-end" id="ivaDisplay">0,00 €</td>
+        </tr>
+        <tr>
+          <th>Total</th>
+          <td class="text-end fw-bold" id="totalDisplay">0,00 €</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <input type="hidden" name="lineas_json" id="lineasJson" />
+  <input type="hidden" name="iva_global" id="ivaGlobalHidden" />
+
+  <div class="mt-3 text-end">
+    {% if not bloqueada %}
+    <button type="submit" class="btn btn-primary">Guardar factura</button>
+    {% else %}
+    <span class="text-muted"
+      >Factura validada: no editable. Cree una rectificativa.</span
+    >
+    {% endif %}
+  </div>
+</form>
+
+<!-- ===================================================== -->
+<!-- ESTILOS -->
+<!-- ===================================================== -->
+<style>
+  .descripcion-input {
+    width: 100%;
+    resize: vertical;
+    min-height: 2.2rem;
+    white-space: pre-wrap;
+  }
+  #clienteDropdown li:hover {
+    background: #e8f2ff;
+    cursor: pointer;
+  }
+  /* ===========================================================
+   FACTURAS / CLIENTES – CENTRADO REAL DE COLUMNAS
+=========================================================== */
+
+  /* Encabezados */
+  #tablaFacturas thead th,
+  #tablaClientes thead th {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Celdas */
+  #tablaFacturas tbody td,
+  #tablaClientes tbody td {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Mantener acciones a la derecha */
+  #tablaFacturas td.acciones,
+  #tablaClientes td.acciones,
+  #tablaFacturas th.acciones-col,
+  #tablaClientes th.acciones-col {
+    text-align: right;
+  }
+</style>
+
+<script>
+  /* =========================================================
+   ESTADO GLOBAL
+========================================================= */
+  let lineaActivaTextarea = null;
+  let TOAST_VISIBLE = false;
+
+  /* =========================================================
+   INICIO
+========================================================= */
+  document.addEventListener("DOMContentLoaded", async () => {
+    const tbody = document.getElementById("lineasBody");
+
+    /* ==== CARGAR LÍNEAS EXISTENTES ==== */
+    const EXISTING_LINES = JSON.parse(
+      document.getElementById("lineas-data").textContent
+    );
+
+    if (EXISTING_LINES.length > 0) {
+      EXISTING_LINES.forEach((l) =>
+        tbody.appendChild(
+          crearFilaLinea({
+            id: l.id,
+            descripcion: l.descripcion,
+            cantidad: l.cantidad,
+            precio_unitario: l.precio_unitario,
+          })
+        )
+      );
+    } else {
+      tbody.appendChild(crearFilaLinea());
+    }
+
+    renumerarFilas();
+    recalcularTotales();
+
+    /* ===== AÑADIR LÍNEA ===== */
+    document.getElementById("btnAddLinea").addEventListener("click", () => {
+      tbody.appendChild(crearFilaLinea());
+      renumerarFilas();
+      recalcularTotales();
+    });
+
+    /* ===== GUARDAR FACTURA ===== */
+    document.getElementById("facturaForm").addEventListener("submit", () => {
+      document.getElementById("lineasJson").value = JSON.stringify(
+        serializarLineas()
+      );
+      document.getElementById("ivaGlobalHidden").value =
+        document.getElementById("ivaGlobalSelect").value;
+    });
+
+    inicializarAutocompleteCliente();
+
+    /* ===== NUMERACIÓN AUTOMÁTICA ==== */
+    const IS_EDIT = "{{ '1' if factura else '0' }}" === "1";
+    if (!IS_EDIT) {
+      cargarNumeroFactura();
+      document
+        .querySelector('input[name="fecha"]')
+        .addEventListener("change", cargarNumeroFactura);
+    }
+  });
+
+  /* =========================================================
+   CREAR FILA
+========================================================= */
+  function crearFilaLinea(initial = {}) {
+    const tr = document.createElement("tr");
+
+    /* === ID HIDDEN === */
+    if (initial.id) {
+      const hiddenId = document.createElement("input");
+      hiddenId.type = "hidden";
+      hiddenId.className = "linea-id";
+      hiddenId.value = initial.id;
+      tr.appendChild(hiddenId);
+    }
+
+    /* === ÍNDICE === */
+    const tdIdx = document.createElement("td");
+    tdIdx.className = "linea-index align-middle";
+    tr.appendChild(tdIdx);
+
+    /* === DESCRIPCIÓN === */
+    const tdDesc = document.createElement("td");
+    tdDesc.style.position = "relative";
+
+    const container = document.createElement("div");
+    const ta = document.createElement("textarea");
+    const list = document.createElement("ul");
+
+    container.className = "autocomplete-container";
+
+    ta.className = "form-control form-control-sm descripcion-input";
+    ta.placeholder = "Describe el trabajo realizado…";
+    ta.value = initial.descripcion || "";
+    ta.dataset.conceptoCreado = "0";
+
+    if (initial.concepto_id) {
+      ta.dataset.conceptoId = initial.concepto_id;
+      ta.dataset.conceptoCreado = "1";
+    }
+
+    ta.addEventListener("focus", () => (lineaActivaTextarea = ta));
+    ta.addEventListener("click", () => (lineaActivaTextarea = ta));
+
+    /* ===== LISTA AUTOCOMPLETE GLOBAL ===== */
+    list.className = "list-group autocomplete-list";
+    list.style.display = "none";
+
+    /* 🔥 IMPORTANTE → NO se mete en la tabla */
+    document.body.appendChild(list);
+
+    container.appendChild(ta);
+    tdDesc.appendChild(container);
+    tr.appendChild(tdDesc);
+
+    /* ===========================================
+   POSICIONAMIENTO LISTA EN PANTALLA
+=========================================== */
+    function posicionarLista() {
+      const rect = ta.getBoundingClientRect();
+
+      list.style.position = "fixed";
+      list.style.top = rect.bottom + 2 + "px";
+      list.style.left = rect.left + "px";
+      list.style.width = rect.width + "px";
+      list.style.zIndex = "9000";
+    }
+
+    /* Recolocar si cambia algo visual */
+    window.addEventListener("scroll", posicionarLista);
+    window.addEventListener("resize", posicionarLista);
+
+    /* ===========================================
+   AUTOCOMPLETE
+=========================================== */
+    let timer = null;
+    let resultados = [];
+
+    async function buscarConceptos() {
+      const q = ta.value.trim();
+      if (q.length < 2) {
+        list.style.display = "none";
+        return;
+      }
+
+      const resp = await fetch(
+        `/conceptos/autocomplete?q=${encodeURIComponent(q)}`
+      );
+      resultados = await resp.json();
+
+      if (!resultados.length) {
+        list.style.display = "none";
+        return;
+      }
+
+      list.innerHTML = "";
+
+      resultados.forEach((c, idx) => {
+        const li = document.createElement("li");
+        li.className = "list-group-item";
+        li.innerHTML = `<strong>${c.nombre}</strong><br><small>${c.descripcion}</small>`;
+        li.onclick = () => seleccionarConcepto(idx);
+        list.appendChild(li);
+      });
+
+      posicionarLista();
+      list.style.display = "block";
+    }
+
+    function seleccionarConcepto(idx) {
+      const concepto = resultados[idx];
+
+      ta.value = concepto.descripcion;
+      ta.dataset.conceptoCreado = "1";
+      ta.dataset.conceptoId = concepto.id;
+
+      autoResizeTextarea(ta);
+      list.style.display = "none";
+      recalcularTotales();
+    }
+
+    /* ========= EVENTOS TEXAREA ========= */
+    ta.addEventListener("input", () => {
+      ta.dataset.conceptoCreado = "0";
+      clearTimeout(timer);
+      timer = setTimeout(buscarConceptos, 200);
+    });
+
+    ta.addEventListener("blur", async () => {
+      lineaActivaTextarea = ta;
+
+      // Si el usuario está interactuando con la lista, no cerrar
+      if (list.matches(":hover")) return;
+
+      if (ta.dataset.conceptoCreado === "1") return;
+
+      const texto = ta.value.trim();
+      if (!texto || texto.length < 3) return;
+
+      const resp = await fetch(
+        `/conceptos/autocomplete?q=${encodeURIComponent(texto)}`
+      );
+      const lista = await resp.json();
+
+      if (lista.length > 0) return;
+
+      if (!TOAST_VISIBLE) {
+        mostrarToastConcepto(
+          `El concepto "${texto}" no existe. ¿Deseas crearlo?`,
+          () => abrirModalNuevoConcepto(texto)
+        );
+      }
+    });
+
+    /* Cerrar lista si se hace clic fuera */
+    document.addEventListener("click", (e) => {
+      if (!ta.contains(e.target) && !list.contains(e.target)) {
+        list.style.display = "none";
+      }
+    });
+
+    /* === CANTIDAD === */
+    const tdCant = document.createElement("td");
+    const inputCant = document.createElement("input");
+    inputCant.type = "number";
+    inputCant.step = "0.01";
+    inputCant.className =
+      "form-control form-control-sm text-end cantidad-input";
+    inputCant.value = initial.cantidad ?? "";
+    inputCant.addEventListener("input", recalcularTotales);
+    tdCant.appendChild(inputCant);
+    tr.appendChild(tdCant);
+
+    /* === PRECIO === */
+    const tdPrecio = document.createElement("td");
+    const inputPrecio = document.createElement("input");
+    inputPrecio.type = "number";
+    inputPrecio.step = "0.01";
+    inputPrecio.className =
+      "form-control form-control-sm text-end precio-input";
+    inputPrecio.value = initial.precio_unitario ?? "";
+    inputPrecio.addEventListener("input", recalcularTotales);
+    tdPrecio.appendChild(inputPrecio);
+    tr.appendChild(tdPrecio);
+
+    /* === TOTAL === */
+    const tdTotal = document.createElement("td");
+    tdTotal.className = "text-end total-linea";
+    tdTotal.textContent = "0,00 €";
+    tr.appendChild(tdTotal);
+
+    /* === ACCIONES === */
+    const tdAcc = document.createElement("td");
+    const btnDel = document.createElement("button");
+    btnDel.textContent = "Eliminar";
+    btnDel.className = "btn btn-sm btn-outline-danger";
+
+    btnDel.onclick = () => {
+      tr.remove();
+      renumerarFilas();
+      recalcularTotales();
+    };
+
+    tdAcc.appendChild(btnDel);
+    tr.appendChild(tdAcc);
+
+    setTimeout(() => autoResizeTextarea(ta), 0);
+
+    return tr;
+  }
+
+  /* =========================================================
+   NUEVO CONCEPTO — MODAL
+========================================================= */
+
+  window.guardarConceptoDesdeModal = async function () {
+    const nombre = document.getElementById("conceptoNombre").value.trim();
+    const descripcion = document
+      .getElementById("conceptoDescripcion")
+      .value.trim();
+    const msg = document.getElementById("nuevoConceptoMsg");
+
+    msg.textContent = "";
+    msg.className = "mt-3 text-sm";
+
+    if (nombre.length < 2) {
+      msg.textContent = "El nombre debe tener al menos 2 caracteres.";
+      msg.classList.add("text-red-600");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("nombre", nombre);
+    fd.append("descripcion", descripcion);
+
+    try {
+      const resp = await fetch("/conceptos/quick-create", {
+        method: "POST",
+        body: fd,
+      });
+
+      const data = await resp.json();
+
+      if (!data.ok) {
+        msg.textContent = data.error || "Error guardando concepto.";
+        msg.classList.add("text-red-600");
+        return;
+      }
+
+      // Mantener texto en textarea activo
+      if (lineaActivaTextarea) {
+        lineaActivaTextarea.value = descripcion;
+        lineaActivaTextarea.dataset.conceptoCreado = "1";
+        lineaActivaTextarea.dataset.conceptoId = data.id; // <<< NUEVO
+
+        autoResizeTextarea(lineaActivaTextarea);
+        recalcularTotales();
+      }
+
+      msg.textContent = "Concepto creado correctamente.";
+      msg.classList.add("text-green-600");
+
+      setTimeout(() => {
+        cerrarModalNuevoConcepto();
+        msg.textContent = "";
+      }, 700);
+    } catch (e) {
+      msg.textContent = "Error de conexión con el servidor.";
+      msg.classList.add("text-red-600");
+    }
+  };
+
+  function abrirModalNuevoConcepto(preDescripcion = "") {
+    document.getElementById("conceptoNombre").value = "";
+    document.getElementById("conceptoDescripcion").value = preDescripcion;
+    document.getElementById("nuevoConceptoMsg").textContent = "";
+
+    const modal = document.getElementById("modalNuevoConcepto");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  function cerrarModalNuevoConcepto() {
+    const modal = document.getElementById("modalNuevoConcepto");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+
+  /* =========================================================
+   TOAST
+========================================================= */
+  function mostrarToastConcepto(msg, onConfirm) {
+    const t = document.getElementById("toastConcepto");
+
+    TOAST_VISIBLE = true;
+
+    t.innerHTML = `${msg}<br>
+        <button class="btn btn-primary btn-sm mt-2" id="toastCrearBtn">Crear</button>
+        <button class="btn btn-secondary btn-sm mt-2" id="toastCancelarBtn">Cancelar</button>
+    `;
+    t.style.display = "block";
+
+    document.getElementById("toastCrearBtn").onclick = () => {
+      t.style.display = "none";
+      TOAST_VISIBLE = false;
+      onConfirm();
+    };
+
+    document.getElementById("toastCancelarBtn").onclick = () => {
+      t.style.display = "none";
+      TOAST_VISIBLE = false;
+    };
+  }
+
+  /* =========================================================
+   UTILIDADES
+========================================================= */
+  function letraLinea(i) {
+    return String.fromCharCode(97 + i) + ")";
+  }
+
+  function renumerarFilas() {
+    document.querySelectorAll("#lineasBody tr").forEach((tr, i) => {
+      tr.querySelector(".linea-index").textContent = letraLinea(i);
+    });
+  }
+
+  function autoResizeTextarea(txt) {
+    txt.style.height = "auto";
+    txt.style.height = txt.scrollHeight + "px";
+  }
+
+  function formatearEuro(v) {
+    return (
+      (Number(v) || 0).toLocaleString("es-ES", { minimumFractionDigits: 2 }) +
+      " €"
+    );
+  }
+
+  function recalcularTotales() {
+    let subtotal = 0;
+
+    document.querySelectorAll("#lineasBody tr").forEach((tr) => {
+      const cant = Number(tr.querySelector(".cantidad-input").value) || 0;
+      const prec = Number(tr.querySelector(".precio-input").value) || 0;
+      const base = cant * prec;
+
+      subtotal += base;
+      tr.querySelector(".total-linea").textContent = formatearEuro(base);
+    });
+
+    const iva = Number(document.getElementById("ivaGlobalSelect").value) || 0;
+    const ivaTotal = subtotal * (iva / 100);
+    const total = subtotal + ivaTotal;
+
+    document.getElementById("subtotalDisplay").textContent =
+      formatearEuro(subtotal);
+    document.getElementById("ivaDisplay").textContent = formatearEuro(ivaTotal);
+    document.getElementById("totalDisplay").textContent = formatearEuro(total);
+  }
+
+  function serializarLineas() {
+    const out = [];
+
+    document.querySelectorAll("#lineasBody tr").forEach((tr) => {
+      const desc = tr.querySelector(".descripcion-input").value.trim();
+      const cant = Number(tr.querySelector(".cantidad-input").value);
+      const prec = Number(tr.querySelector(".precio-input").value);
+
+      if (!desc && !cant && !prec) return;
+
+      out.push({
+        id: tr.querySelector(".linea-id")?.value || null,
+        descripcion: desc,
+        cantidad: cant,
+        precio_unitario: prec,
+        concepto_id:
+          tr.querySelector(".descripcion-input").dataset.conceptoId || null,
+      });
+    });
+
+    return out;
+  }
+
+  async function cargarNumeroFactura() {
+    const input = document.querySelector("input[name='numero']");
+    const resp = await fetch("/facturas/next-number");
+    const data = await resp.json();
+    input.value = data.numero;
+  }
+
+  /* =========================================================
+   AUTOCOMPLETE CLIENTES
+========================================================= */
+  function inicializarAutocompleteCliente() {
+    const input = document.getElementById("clienteInput");
+    const hidden = document.getElementById("clienteId");
+    const dropdown = document.getElementById("clienteDropdown");
+
+    let resultados = [];
+    let timer = null;
+
+    async function buscar() {
+      const q = input.value.trim();
+      if (!q) return cerrar();
+
+      const resp = await fetch(
+        `/clientes/autocomplete?q=${encodeURIComponent(q)}`
+      );
+      resultados = await resp.json();
+
+      if (!resultados.length) return cerrar();
+
+      dropdown.innerHTML = resultados
+        .map(
+          (c, i) => `<li class="list-group-item" data-i="${i}">${c.nombre}</li>`
+        )
+        .join("");
+
+      dropdown.style.display = "block";
+
+      dropdown.querySelectorAll("li").forEach((li) => {
+        li.onclick = () => seleccionar(li.dataset.i);
+      });
+    }
+
+    function seleccionar(i) {
+      const c = resultados[i];
+      input.value = c.nombre;
+      hidden.value = c.id;
+      cerrar();
+    }
+
+    function cerrar() {
+      dropdown.style.display = "none";
+      dropdown.innerHTML = "";
+    }
+
+    input.addEventListener("input", () => {
+      hidden.value = "";
+      clearTimeout(timer);
+      timer = setTimeout(buscar, 200);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!dropdown.contains(e.target) && e.target !== input) cerrar();
+    });
+  }
+
+  /* =========================================================
+   NUEVO CLIENTE
+========================================================= */
+  document
+    .getElementById("formNuevoCliente")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const form = e.target;
+      const msg = document.getElementById("nuevoClienteMsg");
+
+      const fd = new FormData(form);
+      const resp = await fetch("/clientes/quick-create", {
+        method: "POST",
+        body: fd,
+      });
+
+      const out = await resp.json();
+      if (!out.ok) {
+        msg.textContent = out.error || "Error creando cliente.";
+        msg.className = "mt-3 text-sm text-red-600";
+        return;
+      }
+
+      document.getElementById("clienteInput").value = out.nombre;
+      document.getElementById("clienteId").value = out.id;
+
+      msg.textContent = "Cliente creado correctamente.";
+      msg.className = "mt-3 text-sm text-green-600";
+
+      setTimeout(() => {
+        cerrarModalNuevoCliente();
+        form.reset();
+      }, 800);
+    });
+
+  function abrirModalNuevoCliente() {
+    const modal = document.getElementById("modalNuevoCliente");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+
+  function cerrarModalNuevoCliente() {
+    const modal = document.getElementById("modalNuevoCliente");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+  // ===============================================
+  // BLOQUEAR ENTER en el formulario del modal
+  // ===============================================
+  document.addEventListener("DOMContentLoaded", () => {
+    const modalForm = document.querySelector("#modalNuevoConcepto form");
+
+    modalForm.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        // Simula clic en GUARDAR
+        guardarConceptoDesdeModal();
+      }
+    });
+
+    modalForm.addEventListener("submit", function (e) {
+      e.preventDefault(); // protección adicional
+    });
+  });
+</script>
+<script>
+  function construirPayloadFacturaDesdeFormulario() {
+    const clienteId = document.getElementById("clienteId").value || null;
+    const fecha = document.querySelector("input[name='fecha']").value || null;
+
+    const iva = Number(document.getElementById("ivaGlobalSelect").value) || 0;
+
+    const lineas = serializarLineas()
+      .map((l) => ({
+        descripcion: l.descripcion,
+        cantidad: Number(l.cantidad) || 0,
+        precio_unitario: Number(l.precio_unitario) || 0,
+        iva: iva,
+      }))
+      .filter((l) => l.descripcion && l.cantidad && l.precio_unitario);
+
+    return {
+      cliente_id: clienteId ? Number(clienteId) : null,
+      fecha: fecha || null,
+      lineas: lineas,
+    };
+  }
+</script>
+
+<!-- MODAL NUEVO CONCEPTO -->
+<div
+  id="modalNuevoConcepto"
+  class="fixed inset-0 bg-black/40 hidden items-center justify-center"
+  style="z-index: 6000; backdrop-filter: blur(2px)"
+>
+  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-xl">
+    <h3 class="text-xl font-semibold mb-4">Nuevo concepto</h3>
+
+    <!-- FORMULARIO DEL MODAL (NO ENVÍA NADA HASTA QUE LLAMEMOS A guardarConceptoDesdeModal) -->
+    <form id="formNuevoConcepto" class="grid grid-cols-2 gap-4">
+      <div class="col-span-2">
+        <label class="font-semibold">Nombre del concepto</label>
+        <input
+          type="text"
+          name="nombre"
+          id="conceptoNombre"
+          class="form-control"
+          required
+        />
+      </div>
+
+      <div class="col-span-2">
+        <label class="font-semibold">Descripción</label>
+        <textarea
+          name="descripcion"
+          id="conceptoDescripcion"
+          class="form-control"
+        ></textarea>
+      </div>
+
+      <div class="col-span-2 text-right mt-3">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="cerrarModalNuevoConcepto()"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-primary ml-2"
+          onclick="guardarConceptoDesdeModal()"
+        >
+          Guardar
+        </button>
+      </div>
+    </form>
+
+    <div id="nuevoConceptoMsg" class="mt-3 text-sm"></div>
+  </div>
+</div>
+
+<!-- TOAST NUEVO CONCEPTO -->
+<div
+  id="toastConcepto"
+  style="
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #333;
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 8px;
+    display: none;
+    z-index: 7000;
+  "
+></div>
+
+<script>
+  async function guardarFacturaOnline(payload) {
+    const res = await fetch("/api/offline/facturas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || "Error guardando factura en servidor");
+    }
+
+    return res.json();
+  }
+
+  async function guardarFacturaHandler(e) {
+    if (!navigator.onLine) {
+      e.preventDefault();
+
+      const payload = construirPayloadFacturaDesdeFormulario();
+
+      try {
+        await OfflineDB.saveFacturaBorrador(payload);
+        alert(
+          "Factura guardada offline como borrador.\n" +
+            "Se sincronizará automáticamente cuando vuelva la conexión."
+        );
+        // Si queremos que vaya al listado normal (cuando haya conexión)
+        window.location.href = "/facturas/offline";
+      } catch (err) {
+        console.error(err);
+        alert("No se ha podido guardar la factura offline.");
+      }
+
+      return;
+    }
+
+    // ONLINE → NO HACEMOS nada.
+    // Dejamos que el formulario envíe normal a FastAPI.
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("facturaForm");
+    if (form) {
+      form.addEventListener("submit", guardarFacturaHandler);
+    }
+  });
+</script>
+
+{% endblock %}

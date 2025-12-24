@@ -1,0 +1,110 @@
+{% extends "base.html" %} {% block content %}
+
+<h2 class="mb-3">Facturación mensual</h2>
+
+{% include "informes/_filtros.html" %}
+
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card text-bg-light">
+      <div class="card-body">
+        <div class="fw-semibold">Base imponible</div>
+        <h4>{{ total_base | round(2) }} €</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card text-bg-light">
+      <div class="card-body">
+        <div class="fw-semibold">IVA</div>
+        <h4>{{ total_iva | round(2) }} €</h4>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card text-bg-success">
+      <div class="card-body">
+        <div class="fw-semibold">Total facturado</div>
+        <h4>{{ total_fact | round(2) }} €</h4>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <canvas id="graficoMensual"></canvas>
+  </div>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Mes</th>
+      <th>Base</th>
+      <th>IVA</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in meses %}
+    <tr>
+      <td>{{ m.mes_nombre }} {{ m.year }}</td>
+      <td>{{ m.base | round(2) }} €</td>
+      <td>{{ m.iva | round(2) }} €</td>
+      <td class="fw-semibold">{{ m.total | round(2) }} €</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# =============================== DATOS PARA JS (JSON PURO)
+=============================== #}
+<script type="application/json" id="grafico-data">
+  {
+    "labels": {{ meses | map(attribute="mes_nombre") | list | tojson }},
+    "totales": {{ meses | map(attribute="total") | list | tojson }}
+  }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  const rawData = document.getElementById("grafico-data").textContent;
+  const chartData = JSON.parse(rawData);
+
+  const ctx = document.getElementById("graficoMensual").getContext("2d");
+
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: chartData.labels,
+      datasets: [
+        {
+          label: "Facturación mensual",
+          data: chartData.totales,
+          backgroundColor: "rgba(13,110,253,0.6)",
+          borderColor: "rgba(13,110,253,1)",
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: true,
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+</script>
+
+{% endblock %}

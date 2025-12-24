@@ -1,0 +1,387 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>Clientes</h2>
+
+<div class="d-flex justify-content-between mb-3">
+  <input
+    type="text"
+    id="searchInput"
+    class="form-control w-25"
+    placeholder="Buscar por nombre, NIF..."
+  />
+
+  <a href="/clientes/form" class="btn btn-success">Nuevo Cliente</a>
+</div>
+
+<style>
+  /* -----------------------------------------------------------
+     EXPANDIR COLUMNAS AL ANCHO TOTAL Y PERMITIR RESIZE
+  ----------------------------------------------------------- */
+  #tablaClientes {
+    width: 100%;
+    table-layout: fixed; /* columnas expanden */
+    border-collapse: collapse;
+  }
+
+  #tablaClientes th,
+  #tablaClientes td {
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Asas de redimensionamiento */
+  #tablaClientes th.resizable {
+    cursor: col-resize;
+  }
+
+  #tablaClientes th .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+  }
+
+  /* Ordenación */
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  th.sortable.asc::after {
+    content: " ▲";
+    font-size: 0.65rem;
+  }
+
+  th.sortable.desc::after {
+    content: " ▼";
+    font-size: 0.65rem;
+  }
+
+  /* Fila seleccionada */
+  .selected-row {
+    background-color: #e8f2ff !important;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 8vh;
+    z-index: 1050;
+  }
+
+  .modal-dialog-custom {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px 24px;
+    min-width: 360px;
+    max-width: 480px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  #clientesTabla tr,
+  #clientesTabla td {
+    cursor: pointer !important;
+  }
+  /* -----------------------------------------------------------
+   CENTRAR CONTENIDO Y TÍTULOS DE COLUMNAS
+----------------------------------------------------------- */
+
+  /* Centrar encabezados */
+  #tablaClientes thead th {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* Centrar contenido de celdas */
+  #tablaClientes tbody td {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  /* EXCEPCIÓN: columna de acciones a la derecha */
+  #tablaClientes th.acciones-col,
+  #tablaClientes td.acciones {
+    text-align: right;
+  }
+</style>
+
+<table class="table table-hover" id="tablaClientes">
+  <thead>
+    <tr>
+      <th class="sortable resizable" data-field="nombre">
+        Nombre
+        <div class="resize-handle"></div>
+      </th>
+
+      <th class="sortable resizable" data-field="nif">
+        NIF
+        <div class="resize-handle"></div>
+      </th>
+
+      <th class="sortable resizable" data-field="telefono">
+        Teléfono
+        <div class="resize-handle"></div>
+      </th>
+
+      <th class="sortable resizable" data-field="poblacion">
+        Población
+        <div class="resize-handle"></div>
+      </th>
+
+      <th class="sortable resizable" data-field="fecha_alta">
+        Fecha Alta
+        <div class="resize-handle"></div>
+      </th>
+
+      <th class="text-end acciones-col resizable" style="width: 160px">
+        Acciones
+        <div class="resize-handle"></div>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody id="clientesTabla">
+    {% include "clientes/tabla.html" %}
+  </tbody>
+</table>
+
+<!-- Modal detalle -->
+<div id="clienteModal" class="modal-overlay" style="display: none">
+  <div class="modal-dialog-custom">
+    <h4 id="modalNombre" class="mb-3"></h4>
+
+    <p><strong>NIF:</strong> <span id="modalNif"></span></p>
+    <p><strong>Email:</strong> <span id="modalEmail"></span></p>
+    <p><strong>Teléfono:</strong> <span id="modalTelefono"></span></p>
+    <p><strong>Dirección:</strong> <span id="modalDireccion"></span></p>
+    <p><strong>Población:</strong> <span id="modalPoblacion"></span></p>
+    <p><strong>Provincia:</strong> <span id="modalProvincia"></span></p>
+    <p><strong>C.P.:</strong> <span id="modalCP"></span></p>
+    <p><strong>País:</strong> <span id="modalPais"></span></p>
+    <p><strong>Fecha alta:</strong> <span id="modalFecha"></span></p>
+
+    <div class="mt-3 text-end">
+      <a id="btnEditarModal" class="btn btn-primary">Editar</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ============================================================
+   ORDENACIÓN ASC/DESC POR COLUMNA
+============================================================ */
+  let sortState = { field: null, direction: "asc" };
+
+  function sortTable(field) {
+    const rows = Array.from(
+      document.querySelectorAll("#clientesTabla tr[data-cliente]")
+    );
+    if (!rows.length) return;
+
+    // Alternar dirección
+    if (sortState.field === field) {
+      sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+    } else {
+      sortState.field = field;
+      sortState.direction = "asc";
+    }
+
+    // Marcar visualmente
+    document
+      .querySelectorAll("th.sortable")
+      .forEach((th) => th.classList.remove("asc", "desc"));
+    const th = document.querySelector(`th[data-field="${field}"]`);
+    th.classList.add(sortState.direction);
+
+    rows.sort((a, b) => {
+      const dataA = JSON.parse(a.dataset.cliente)[field] ?? "";
+      const dataB = JSON.parse(b.dataset.cliente)[field] ?? "";
+
+      if (field === "fecha_alta") {
+        return sortState.direction === "asc"
+          ? new Date(dataA) - new Date(dataB)
+          : new Date(dataB) - new Date(dataA);
+      }
+
+      return sortState.direction === "asc"
+        ? dataA.toString().localeCompare(dataB.toString())
+        : dataB.toString().localeCompare(dataA.toString());
+    });
+
+    const tbody = document.getElementById("clientesTabla");
+    rows.forEach((r) => tbody.appendChild(r));
+  }
+
+  /* Eventos de ordenación */
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("th.sortable").forEach((th) => {
+      th.addEventListener("click", (e) => {
+        if (e.target.classList.contains("resize-handle")) return;
+        sortTable(th.dataset.field);
+      });
+    });
+  });
+</script>
+
+<script>
+  /* ============================================================
+   REDIMENSIONAR COLUMNAS MANUALMENTE (resize)
+============================================================ */
+  document.addEventListener("DOMContentLoaded", () => {
+    let currentTh = null;
+    let startX = 0;
+    let startWidth = 0;
+
+    document
+      .querySelectorAll("#tablaClientes th .resize-handle")
+      .forEach((handle) => {
+        handle.addEventListener("mousedown", (e) => {
+          currentTh = e.target.parentElement;
+          startX = e.pageX;
+          startWidth = currentTh.offsetWidth;
+          document.body.style.cursor = "col-resize";
+          e.preventDefault();
+        });
+      });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!currentTh) return;
+      const newWidth = Math.max(50, startWidth + (e.pageX - startX));
+      currentTh.style.width = newWidth + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (currentTh) {
+        document.body.style.cursor = "default";
+        currentTh = null;
+      }
+    });
+  });
+</script>
+
+<script>
+  /* ============================================================
+   GESTIÓN DE SELECCIÓN + MODAL (TU LÓGICA ORIGINAL)
+============================================================ */
+
+  function attachRowHandlers() {
+    const rows = document.querySelectorAll("#clientesTabla tr[data-cliente]");
+    const accionesTodas = document.querySelectorAll("#clientesTabla .acciones");
+
+    rows.forEach((row) => {
+      const data = JSON.parse(row.dataset.cliente);
+
+      row.addEventListener("click", () => {
+        document
+          .querySelectorAll("#clientesTabla tr")
+          .forEach((r) => r.classList.remove("selected-row"));
+        accionesTodas.forEach((c) => (c.style.visibility = "hidden"));
+
+        row.classList.add("selected-row");
+
+        const acciones = row.querySelector(".acciones");
+        if (acciones) acciones.style.visibility = "visible";
+      });
+
+      row.addEventListener("dblclick", () => {
+        const modal = document.getElementById("clienteModal");
+
+        document.getElementById("modalNombre").innerText = data.nombre || "-";
+        document.getElementById("modalNif").innerText = data.nif || "-";
+        document.getElementById("modalEmail").innerText = data.email || "-";
+        document.getElementById("modalTelefono").innerText =
+          data.telefono || "-";
+        document.getElementById("modalDireccion").innerText =
+          data.direccion || "-";
+        document.getElementById("modalPoblacion").innerText =
+          data.poblacion || "-";
+        document.getElementById("modalProvincia").innerText =
+          data.provincia || "-";
+        document.getElementById("modalCP").innerText = data.cp || "-";
+        document.getElementById("modalPais").innerText = data.pais || "-";
+
+        let f = "-";
+        if (data.fecha_alta) {
+          try {
+            f = new Date(data.fecha_alta).toLocaleDateString("es-ES");
+          } catch {}
+        }
+        document.getElementById("modalFecha").innerText = f;
+
+        document.getElementById(
+          "btnEditarModal"
+        ).href = `/clientes/${data.id}/edit`;
+
+        modal.style.display = "flex";
+      });
+    });
+  }
+
+  function attachModalClose() {
+    const modal = document.getElementById("clienteModal");
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.style.display = "none";
+    });
+  }
+
+  /* ============================================================
+   BÚSQUEDA AJAX
+============================================================ */
+  document.addEventListener("DOMContentLoaded", () => {
+    const search = document.getElementById("searchInput");
+    const tabla = document.getElementById("clientesTabla");
+
+    const buscar = async () => {
+      const q = search.value || "";
+      const resp = await fetch(`/clientes/search?q=${encodeURIComponent(q)}`);
+      const html = await resp.text();
+      tabla.innerHTML = html;
+
+      attachRowHandlers();
+    };
+
+    search.addEventListener("keyup", debounce(buscar, 200));
+
+    attachRowHandlers();
+    attachModalClose();
+  });
+
+  /* Debounce */
+  function debounce(fn, delay) {
+    let timer = null;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  /* Desseleccionar clic fuera */
+  document.addEventListener("click", (e) => {
+    const tabla = document.getElementById("tablaClientes");
+    const modal = document.getElementById("clienteModal");
+
+    const enTabla = tabla.contains(e.target);
+    const enModal = modal.contains(e.target);
+
+    if (!enTabla && !enModal) {
+      document
+        .querySelectorAll("#clientesTabla tr")
+        .forEach((r) => r.classList.remove("selected-row"));
+      document
+        .querySelectorAll("#clientesTabla .acciones")
+        .forEach((c) => (c.style.visibility = "hidden"));
+    }
+  });
+</script>
+
+{% endblock %}

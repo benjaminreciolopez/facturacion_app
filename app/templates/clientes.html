@@ -1,0 +1,29 @@
+<div class="bg-white p-6 rounded shadow">
+  <h3 class="text-xl font-semibold mb-4">Nuevo Cliente</h3>
+
+  <form hx-post="/clientes/create" hx-target="#contenido">
+    <div class="mb-2">
+      <label>Nombre</label>
+      <input type="text" name="nombre" class="border p-2 w-full" />
+    </div>
+
+    <div class="mb-2">
+      <label>NIF/CIF</label>
+      <input type="text" name="nif" class="border p-2 w-full" />
+    </div>
+
+    <div class="mb-2">
+      <label>Email</label>
+      <input type="email" name="email" class="border p-2 w-full" />
+    </div>
+
+    <div class="mb-2">
+      <label>Dirección</label>
+      <input type="text" name="direccion" class="border p-2 w-full" />
+    </div>
+
+    <button class="bg-green-600 text-white px-4 py-2 rounded mt-3">
+      Guardar
+    </button>
+  </form>
+</div>

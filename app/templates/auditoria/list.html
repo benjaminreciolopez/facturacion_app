@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-6">Auditoría del sistema</h2>
+
+<!-- ========================= -->
+<!-- FILTROS -->
+<!-- ========================= -->
+<form method="get" class="grid grid-cols-6 gap-4 mb-6">
+
+  <input
+    type="text"
+    name="entidad"
+    placeholder="Entidad"
+    value="{{ filtros.entidad or '' }}"
+    class="border px-3 py-2 rounded"
+  />
+
+  <input
+    type="text"
+    name="accion"
+    placeholder="Acción"
+    value="{{ filtros.accion or '' }}"
+    class="border px-3 py-2 rounded"
+  />
+
+  <select name="resultado" class="border px-3 py-2 rounded">
+    <option value="">Resultado</option>
+    {% for r in ["OK", "BLOQUEADO", "ERROR"] %}
+      <option value="{{ r }}" {% if filtros.resultado == r %}selected{% endif %}>
+        {{ r }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <input
+    type="date"
+    name="fecha_desde"
+    value="{{ filtros.fecha_desde }}"
+    class="border px-3 py-2 rounded"
+  />
+
+  <input
+    type="date"
+    name="fecha_hasta"
+    value="{{ filtros.fecha_hasta }}"
+    class="border px-3 py-2 rounded"
+  />
+
+  <button class="bg-blue-600 text-white px-4 py-2 rounded">
+    Filtrar
+  </button>
+</form>
+
+<!-- ========================= -->
+<!-- TABLA -->
+<!-- ========================= -->
+<div class="bg-white rounded shadow overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="px-4 py-2 text-left">Fecha</th>
+        <th class="px-4 py-2">Entidad</th>
+        <th class="px-4 py-2">Acción</th>
+        <th class="px-4 py-2">Resultado</th>
+        <th class="px-4 py-2">Motivo</th>
+        <th class="px-4 py-2">IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in eventos %}
+      <tr class="border-t">
+        <td class="px-4 py-2 whitespace-nowrap">
+            {{ e.created_at.strftime("%d/%m/%Y %H:%M:%S") }}
+        </td>
+        <td class="px-4 py-2 text-center font-semibold">
+          {{ e.entidad }}
+        </td>
+        <td class="px-4 py-2 text-center">
+          {{ e.accion }}
+        </td>
+        <td class="px-4 py-2 text-center">
+          {% if e.resultado == "ERROR" %}
+            <span class="text-red-600 font-bold">ERROR</span>
+          {% elif e.resultado == "BLOQUEADO" %}
+            <span class="text-yellow-600 font-bold">BLOQUEADO</span>
+          {% else %}
+            <span class="text-green-600 font-bold">OK</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-gray-700 max-w-md truncate">
+          {{ e.motivo or "-" }}
+        </td>
+        <td class="px-4 py-2 text-xs text-gray-500">
+          {{ e.ip or "-" }}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" class="px-4 py-6 text-center text-gray-500">
+          No hay eventos de auditoría para los filtros seleccionados.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>{{ cliente.id if cliente else "Nuevo Cliente" }}</h2>
+
+<form
+  method="post"
+  action="{{ '/clientes/' ~ cliente.id ~ '/edit' if cliente else '/clientes/create' }}"
+>
+  <div class="mb-3">
+    <label class="form-label">Nombre</label>
+    <input
+      type="text"
+      name="nombre"
+      class="form-control"
+      value="{{ cliente.nombre if cliente else '' }}"
+      required
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">NIF</label>
+    <input
+      type="text"
+      name="nif"
+      class="form-control"
+      value="{{ cliente.nif if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Email</label>
+    <input
+      type="email"
+      name="email"
+      class="form-control"
+      value="{{ cliente.email if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Teléfono</label>
+    <input
+      type="text"
+      name="telefono"
+      class="form-control"
+      value="{{ cliente.telefono if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Dirección</label>
+    <input
+      type="text"
+      name="direccion"
+      class="form-control"
+      value="{{ cliente.direccion if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Población</label>
+    <input
+      type="text"
+      name="poblacion"
+      class="form-control"
+      value="{{ cliente.poblacion if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Código Postal</label>
+    <input
+      type="text"
+      name="cp"
+      class="form-control"
+      value="{{ cliente.cp if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Provincia</label>
+    <input
+      type="text"
+      name="provincia"
+      class="form-control"
+      value="{{ cliente.provincia if cliente else '' }}"
+    />
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">País</label>
+    <input
+      type="text"
+      name="pais"
+      class="form-control"
+      value="{{ cliente.pais if cliente else 'España' }}"
+    />
+  </div>
+
+  <button class="btn btn-primary" type="submit">Guardar</button>
+</form>
+
+{% endblock %}

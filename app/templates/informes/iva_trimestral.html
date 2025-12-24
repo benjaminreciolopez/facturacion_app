@@ -1,0 +1,59 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>IVA Trimestral – {{ year }} · T{{ trimestre }}</h2>
+
+<table class="table table-bordered table-striped mt-3">
+  <thead class="table-light">
+    <tr>
+      <th>IVA %</th>
+      <th class="text-center">Facturas</th>
+      <th class="text-center">Anuladas</th>
+      <th class="text-end">Base imponible</th>
+      <th class="text-end">IVA repercutido</th>
+      <th class="text-end">Total facturado</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for r in resumen %}
+    <tr>
+      <td>{{ "%.2f"|format(r.iva) }}%</td>
+      <td class="text-center">{{ r.facturas }}</td>
+      <td class="text-center">
+        {% if r.anuladas > 0 %}
+        <span class="badge bg-danger">{{ r.anuladas }}</span>
+        {% else %}
+        <span class="text-muted">0</span>
+        {% endif %}
+      </td>
+      <td class="text-end {{ 'text-danger' if r.base < 0 }}">
+        {{ "%.2f"|format(r.base) }} €
+      </td>
+      <td class="text-end {{ 'text-danger' if r.cuota < 0 }}">
+        {{ "%.2f"|format(r.cuota) }} €
+      </td>
+      <td class="text-end fw-semibold {{ 'text-danger' if r.total < 0 }}">
+        {{ "%.2f"|format(r.total) }} €
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+
+  <tfoot class="table-secondary">
+    <tr>
+      <th class="text-end">TOTAL</th>
+      <th class="text-center">{{ total_facturas }}</th>
+      <th class="text-center">{{ total_anuladas }}</th>
+      <th class="text-end">{{ "%.2f"|format(total_base) }} €</th>
+      <th class="text-end">{{ "%.2f"|format(total_iva) }} €</th>
+      <th class="text-end">{{ "%.2f"|format(total_total) }} €</th>
+    </tr>
+  </tfoot>
+</table>
+
+<p class="text-muted small">
+  Nota: las facturas anuladas se incluyen compensadas (restadas) en base, IVA y
+  total.
+</p>
+
+{% endblock %}

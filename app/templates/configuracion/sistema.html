@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-6">Configuración del sistema</h2>
+
+<form method="post" class="space-y-8 max-w-3xl">
+
+  <!-- ========================= -->
+  <!-- VERI*FACTU -->
+  <!-- ========================= -->
+  <div class="bg-white p-6 rounded shadow space-y-4">
+    <h3 class="font-semibold mb-2 text-lg">Veri*Factu</h3>
+
+    <div>
+      <label class="block mb-1 font-medium">Modo</label>
+      <select name="verifactu_modo" class="border rounded px-3 py-2 w-full">
+        {% for m in ["OFF", "TEST", "PRODUCCION"] %}
+        <option value="{{ m }}" {% if config.verifactu_modo == m %}selected{% endif %}>
+          {{ m }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block mb-1 font-medium">URL Servidor Veri*Factu</label>
+      <input
+        type="text"
+        name="verifactu_url"
+        class="border rounded px-3 py-2 w-full"
+        placeholder="http://127.0.0.1:9000/verifactu/registrar-factura"
+        value="{{ config.verifactu_url or '' }}"
+      />
+      <p class="text-sm text-gray-500 mt-1">
+        Para pruebas: http://127.0.0.1:9000/verifactu/registrar-factura
+      </p>
+    </div>
+  </div>
+
+  <!-- ========================= -->
+  <!-- CONTROL DE FACTURAS -->
+  <!-- ========================= -->
+  <div class="bg-white p-6 rounded shadow space-y-3">
+    <h3 class="font-semibold mb-2 text-lg">Control de facturas</h3>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="facturas_inmutables"
+        {% if config.facturas_inmutables %}checked{% endif %}>
+      Facturas validadas inmutables
+    </label>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="prohibir_borrado_facturas"
+        {% if config.prohibir_borrado_facturas %}checked{% endif %}>
+      Prohibir borrado de facturas validadas
+    </label>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="bloquear_fechas_pasadas"
+        {% if config.bloquear_fechas_pasadas %}checked{% endif %}>
+      Bloquear fechas pasadas
+    </label>
+  </div>
+
+  <!-- ========================= -->
+  <!-- AUDITORÍA -->
+  <!-- ========================= -->
+  <div class="bg-white p-6 rounded shadow space-y-3">
+    <h3 class="font-semibold mb-2 text-lg">Auditoría</h3>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="auditoria_activa"
+        {% if config.auditoria_activa %}checked{% endif %}>
+      Activar auditoría
+    </label>
+
+    <div>
+      <label class="block mb-1 font-medium">Nivel</label>
+      <select name="nivel_auditoria" class="border rounded px-3 py-2 w-full">
+        {% for n in ["BASICA", "COMPLETA"] %}
+        <option value="{{ n }}" {% if config.nivel_auditoria == n %}selected{% endif %}>
+          {{ n }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <!-- ========================= -->
+  <!-- CORREO SMTP -->
+  <!-- ========================= -->
+  <div class="bg-white p-6 rounded shadow space-y-3">
+    <h3 class="text-lg font-semibold mb-2">Correo SMTP</h3>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="smtp_enabled"
+        {% if config.smtp_enabled %}checked{% endif %}>
+      Activar envío de correos
+    </label>
+
+    <div class="grid grid-cols-2 gap-4 mt-3">
+      <div>
+        <label class="block mb-1 font-medium">Servidor SMTP</label>
+        <input name="smtp_host"
+          value="{{ config.smtp_host or '' }}"
+          class="border rounded px-3 py-2 w-full">
+      </div>
+
+      <div>
+        <label class="block mb-1 font-medium">Puerto</label>
+        <input name="smtp_port"
+          value="{{ config.smtp_port or 587 }}"
+          class="border rounded px-3 py-2 w-full">
+      </div>
+
+      <div>
+        <label class="block mb-1 font-medium">Email Usuario</label>
+        <input name="smtp_user"
+          value="{{ config.smtp_user or '' }}"
+          class="border rounded px-3 py-2 w-full">
+      </div>
+
+      <div>
+        <label class="block mb-1 font-medium">Contraseña</label>
+        <input type="password"
+          name="smtp_password"
+          value="{{ config.smtp_password or '' }}"
+          class="border rounded px-3 py-2 w-full">
+      </div>
+
+      <div class="col-span-2">
+        <label class="block mb-1 font-medium">Remitente</label>
+        <input name="smtp_from"
+          value="{{ config.smtp_from or '' }}"
+          class="border rounded px-3 py-2 w-full">
+      </div>
+    </div>
+
+    <div class="mt-2">
+      <label class="mr-6">
+        <input type="checkbox" name="smtp_tls" {% if config.smtp_tls %}checked{% endif %}>
+        TLS
+      </label>
+
+      <label>
+        <input type="checkbox" name="smtp_ssl" {% if config.smtp_ssl %}checked{% endif %}>
+        SSL
+      </label>
+    </div>
+  </div>
+<div class="mt-4">
+  <button 
+    type="button"
+    onclick="probarSMTP()"
+    class="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700"
+  >
+    Probar conexión SMTP
+  </button>
+
+  <div id="smtpResult" class="mt-3 p-3 rounded hidden"></div>
+</div>
+
+<script>
+function probarSMTP() {
+  const result = document.getElementById("smtpResult");
+  result.textContent = "Probando...";
+  result.className = "ml-3 text-blue-600";
+
+  const form = document.querySelector("form");
+  const data = new FormData(form);
+
+  fetch("/configuracion/sistema/test-smtp", {
+    method: "POST",
+    body: data
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      result.textContent = data.msg || "Conexión correcta";
+      result.className = "ml-3 text-green-600";
+    } else {
+      result.textContent =
+        (data.title ? data.title + " — " : "") +
+        (data.msg || "Error desconocido");
+
+      result.className = "ml-3 text-red-600";
+      console.warn("SMTP ERROR:", data);
+    }
+  })
+  .catch(err => {
+    result.textContent = "Error inesperado al probar SMTP";
+    result.className = "ml-3 text-red-600";
+  });
+}
+</script>
+
+  <button class="bg-blue-600 text-white px-6 py-2 rounded shadow">
+    Guardar configuración
+  </button>
+
+</form>
+
+{% endblock %}
