@@ -678,15 +678,17 @@
       });
 
       /* Selector de carpeta */
-      document
-        .getElementById("btnElegirCarpeta")
-        .addEventListener("click", () => {
-          document.getElementById("folderPicker").click();
+      const legacyBtn = document.getElementById("btnElegirCarpeta");
+      if (legacyBtn) {
+        legacyBtn.addEventListener("click", () => {
+          const picker = document.getElementById("folderPicker");
+          if (picker) picker.click();
         });
+      }
 
-      document
-        .getElementById("folderPicker")
-        .addEventListener("change", (e) => {
+      const folderPicker = document.getElementById("folderPicker");
+      if (folderPicker) {
+        folderPicker.addEventListener("change", (e) => {
           if (!e.target.files.length) return;
 
           const first = e.target.files[0].webkitRelativePath;
@@ -694,6 +696,7 @@
 
           document.getElementById("rutaPdf").value = folder;
         });
+      }
 
       /* Probar certificado */
       document
