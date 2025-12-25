@@ -11,13 +11,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlmodel import Session, select
 from pathlib import Path
 from datetime import date, datetime, timezone
-import os
-
+import os, re
 from app.db.session import get_session
 from app.core.templates import templates
 from app.models.emisor import Emisor
 from app.models.factura import Factura
-
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
@@ -49,8 +47,13 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # Subcarpeta específica para certificado digital
 CERT_DIR = DATA_DIR / "certs"
 CERT_DIR.mkdir(parents=True, exist_ok=True)
-
-
+MOBILE_REGEX = re.compile(
+    r"android|iphone|ipad|ipod|blackberry|phone|mobile",
+    re.IGNORECASE
+)
+def is_mobile(request: Request) -> bool:
+    ua = request.headers.get("user-agent", "")
+    return bool(MOBILE_REGEX.search(ua))
 # =========================================================
 # VISTA PRINCIPAL
 # =========================================================
@@ -86,7 +89,7 @@ def emisor_view(request: Request, session: Session = Depends(get_session)):
 # DATOS GENERALES
 # =========================================================
 @router.post("/save")
-def emisor_save(
+def emisor_save(request: Request,
     nombre: str = Form(""),
     nif: str = Form(""),
     direccion: str = Form(""),
@@ -99,8 +102,10 @@ def emisor_save(
     web: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+            raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+   
     emisor = session.get(Emisor, 1) or Emisor(id=1)
-
     emisor.nombre = nombre
     emisor.nif = nif
     emisor.direccion = direccion
@@ -122,10 +127,13 @@ def emisor_save(
 # LOGO
 # =========================================================
 @router.post("/logo")
-async def emisor_upload_logo(
+async def emisor_upload_logo(request: Request,
     file: UploadFile,
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+            raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+   
     emisor = session.get(Emisor, 1)
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
@@ -143,7 +151,11 @@ async def emisor_upload_logo(
     return RedirectResponse("/configuracion/emisor", status_code=303)
 
 @router.post("/logo/eliminar")
-async def emisor_eliminar_logo(session: Session = Depends(get_session)):
+async def emisor_eliminar_logo(request: Request, session: Session = Depends(get_session)):
+
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+   
     emisor = session.get(Emisor, 1)
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
@@ -173,12 +185,15 @@ async def emisor_eliminar_logo(session: Session = Depends(get_session)):
 # TEXTOS LEGALES
 # =========================================================
 @router.post("/textos")
-def emisor_textos(
+def emisor_textos(request: Request,
     texto_pie: str = Form(""),
     texto_exento: str = Form(""),
     texto_rectificativa: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+   
     emisor = session.get(Emisor, 1)
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
@@ -195,11 +210,14 @@ def emisor_textos(
 # CERTIFICADO DIGITAL
 # =========================================================
 @router.post("/certificado")
-async def emisor_upload_certificado(
+async def emisor_upload_certificado(request: Request,
     file: UploadFile = File(...),
     password: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+    
     if not file or not file.filename:
         raise HTTPException(400, "No se ha enviado ningún archivo")
 
@@ -268,10 +286,13 @@ def certificado_info(session: Session = Depends(get_session)):
 
 
 @router.post("/test-cert", response_class=JSONResponse)
-async def test_certificado(
+async def test_certificado(request: Request,
     file: UploadFile = File(...),
     password: str = Form(""),
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+    
     if not file.filename.lower().endswith((".pfx", ".p12")):
         return {"ok": False, "mensaje": "El certificado debe ser .pfx o .p12"}
 
@@ -303,10 +324,13 @@ async def test_certificado(
 # RUTA PDF
 # =========================================================
 @router.post("/ruta-pdf")
-def guardar_ruta_pdf(
+def guardar_ruta_pdf(request: Request,
     ruta_pdf: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+    
     emisor = session.get(Emisor, 1)
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
@@ -360,11 +384,14 @@ def seleccionar_carpeta():
 # NUMERACIÓN
 # =========================================================
 @router.post("/numeracion")
-def guardar_numeracion(
+def guardar_numeracion(request: Request,
     serie_facturacion: str = Form(...),
     numeracion_plantilla: str = Form(...),
     session: Session = Depends(get_session),
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+    
     emisor = session.get(Emisor, 1)
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
@@ -417,6 +444,9 @@ async def guardar_seguridad(
     request: Request,
     session: Session = Depends(get_session)
 ):
+    if is_mobile(request):
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+    
     form = await request.form()
 
     pin = form.get("pin")
