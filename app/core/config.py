@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+import os
 
 
 class Settings(BaseSettings):
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     EMAIL_TLS: bool = True
 
     class Config:
-        env_file = ".env.dev"
+        env_file = ".env.dev" if os.getenv("RENDER") is None else None
 
 
 settings = Settings()
