@@ -136,6 +136,7 @@ self.addEventListener("fetch", (event) => {
   if (
     url.pathname.startsWith("/api") ||
     url.pathname.startsWith("/facturas") ||
+    url.pathname.startsWith("/configuracion/emisor") || // 👈 AÑADIR ESTO
     event.request.mode === "navigate"
   ) {
     return event.respondWith(networkFirst(event.request));
