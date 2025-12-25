@@ -738,79 +738,82 @@
         });
     </script>
 <script>
-function actualizarPanelCertificado(data) {
-  const panel = document.getElementById("certPanel");
-  const error = document.getElementById("certError");
-  const estado = document.getElementById("certEstado");
+document.addEventListener("DOMContentLoaded", () => {
 
-  if (!data.ok) {
-    panel.classList.add("hidden");
-    error.classList.remove("hidden");
-    error.textContent = data.mensaje;
-    return;
+  function actualizarPanelCertificado(data) {
+    const panel = document.getElementById("certPanel");
+    const error = document.getElementById("certError");
+    const estado = document.getElementById("certEstado");
+
+    if (!panel || !error || !estado) return;
+
+    if (!data.ok) {
+      panel.classList.add("hidden");
+      error.classList.remove("hidden");
+      error.textContent = data.mensaje;
+      return;
+    }
+
+    error.classList.add("hidden");
+    panel.classList.remove("hidden");
+
+    document.getElementById("certTitular").textContent = data.titular;
+    document.getElementById("certEmisor").textContent = data.emisor;
+    document.getElementById("certDesde").textContent = data.valido_desde;
+    document.getElementById("certHasta").textContent = data.valido_hasta;
+    document.getElementById("certDias").textContent = data.dias_restantes;
+
+    let dias = data.dias_restantes;
+
+    if (dias > 60) {
+      estado.textContent = "Certificado válido";
+      estado.className = "bg-green-100 text-green-700 p-2 rounded";
+    } else if (dias > 15) {
+      estado.textContent = "Aviso: Certificado próximo a caducar";
+      estado.className = "bg-yellow-100 text-yellow-700 p-2 rounded";
+    } else if (dias >= 0) {
+      estado.textContent = "¡Urgente! El certificado caduca muy pronto";
+      estado.className = "bg-red-100 text-red-700 p-2 rounded";
+    } else {
+      estado.textContent = "Certificado caducado";
+      estado.className = "bg-red-200 text-red-800 p-2 rounded";
+    }
   }
 
-  error.classList.add("hidden");
-  panel.classList.remove("hidden");
-
-  document.getElementById("certTitular").textContent = data.titular;
-  document.getElementById("certEmisor").textContent = data.emisor;
-  document.getElementById("certDesde").textContent = data.valido_desde;
-  document.getElementById("certHasta").textContent = data.valido_hasta;
-  document.getElementById("certDias").textContent = data.dias_restantes;
-
-  let dias = data.dias_restantes;
-
-  if (dias > 60) {
-    estado.textContent = "Certificado válido";
-    estado.className = "bg-green-100 text-green-700 p-2 rounded";
-  } else if (dias > 15) {
-    estado.textContent = "Aviso: Certificado próximo a caducar";
-    estado.className = "bg-yellow-100 text-yellow-700 p-2 rounded";
-  } else if (dias >= 0) {
-    estado.textContent = "¡Urgente! El certificado caduca muy pronto";
-    estado.className = "bg-red-100 text-red-700 p-2 rounded";
-  } else {
-    estado.textContent = "Certificado caducado";
-    estado.className = "bg-red-200 text-red-800 p-2 rounded";
-  }
-}
-
-/* ===============================
-   AUTO-CARGA AL ABRIR EL TAB
-=============================== */
-const certTab = document.querySelector("[data-tab='cert']");
-if (certTab) {
-  certTab.addEventListener("click", async () => {
+  async function cargarCertificado() {
     try {
       const resp = await fetch("/configuracion/emisor/certificado/info");
       const data = await resp.json();
       actualizarPanelCertificado(data);
     } catch (e) {
-      console.warn("No se pudo cargar la información del certificado", e);
+      console.warn("No se pudo cargar información del certificado", e);
     }
-  });
-}
+  }
 
-/* ===============================
-   BOTÓN TEST MANUAL
-=============================== */
-const btnTest = document.getElementById("btnTestCert");
-if (btnTest) {
-  btnTest.addEventListener("click", async () => {
-    const archivo = document.getElementById("certificadoFile").files[0];
-    const password = document.getElementById("certPassword").value;
+  const certTab = document.querySelector("[data-tab='cert']");
+  if (certTab) {
+    certTab.addEventListener("click", cargarCertificado);
+  }
 
-    if (!archivo) {
-      alert("Selecciona un archivo .pfx primero.");
-      return;
-    }
+  const btnTest = document.getElementById("btnTestCert");
+  if (btnTest) {
+    btnTest.addEventListener("click", async () => {
+      const archivoInput = document.getElementById("certificadoFile");
+      const passInput = document.getElementById("certPassword");
 
-    const fd = new FormData();
-    fd.append("file", archivo);
-    fd.append("password", password);
+      if (!archivoInput) return;
+      const archivo = archivoInput.files[0];
+      const password = passInput ? passInput.value : "";
 
-    try {
+      if (!archivo) {
+        alert("Selecciona un .pfx para probar.");
+        return;
+      }
+
+      let fd = new FormData();
+      fd.append("file", archivo);
+      fd.append("password", password);
+
       const resp = await fetch("/configuracion/emisor/test-cert", {
         method: "POST",
         body: fd,
@@ -818,24 +821,11 @@ if (btnTest) {
 
       const data = await resp.json();
       actualizarPanelCertificado(data);
-    } catch (e) {
-      alert("No se pudo probar el certificado.");
-      console.error(e);
-    }
-  });
-}
-
-/* ===============================
-   AUTO-CARGA AL ENTRAR EN LA PÁGINA
-=============================== */
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const resp = await fetch("/configuracion/emisor/certificado/info");
-    const data = await resp.json();
-    actualizarPanelCertificado(data);
-  } catch (e) {
-    console.warn("No se pudo cargar información del certificado al iniciar", e);
+    });
   }
+
+  // Cargar automáticamente al abrir página
+  cargarCertificado();
 });
 </script>
     
