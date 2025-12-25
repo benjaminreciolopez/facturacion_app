@@ -1,4 +1,9 @@
-{% extends "base.html" %} {% block content %}
+{% extends "base.html" %} {% block content %} {% if
+request.query_params.get("error") %}
+<div class="alert alert-danger">{{ request.query_params.get("error") }}</div>
+{% endif %} {% if request.query_params.get("ok") %}
+<div class="alert alert-success">{{ request.query_params.get("ok") }}</div>
+{% endif %}
 
 <h2>Configuración de Tipos de IVA</h2>
 

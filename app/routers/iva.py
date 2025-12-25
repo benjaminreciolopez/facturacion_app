@@ -62,7 +62,17 @@ def iva_create(
     descripcion: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    # Evitar duplicados
+    # Normalizar a 2 decimales para evitar problemas de float
+    porcentaje = round(float(porcentaje), 2)
+
+    # Validaciones básicas
+    if porcentaje < 0 or porcentaje > 100:
+        return RedirectResponse(
+            f"/configuracion/iva?error=Porcentaje%20no%20válido",
+            status_code=303,
+        )
+
+    # Evitar duplicados (sobre el valor redondeado)
     existe = session.exec(
         select(IVA)
         .where(IVA.activo == True)
@@ -70,14 +80,14 @@ def iva_create(
     ).first()
 
     if existe:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ya existe un IVA del {porcentaje}%",
+        return RedirectResponse(
+            f"/configuracion/iva?error=Ya%20existe%20un%20IVA%20del%20{porcentaje}%",
+            status_code=303,
         )
 
     iva = IVA(
         porcentaje=porcentaje,
-        descripcion=descripcion.strip(),
+        descripcion=(descripcion or "").strip(),
         activo=True,
     )
 
@@ -85,7 +95,7 @@ def iva_create(
     session.commit()
 
     return RedirectResponse(
-        "/configuracion/iva",
+        "/configuracion/iva?ok=IVA%20creado%20correctamente",
         status_code=303,
     )
 
