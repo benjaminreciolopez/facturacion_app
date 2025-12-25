@@ -293,6 +293,7 @@ body.desktop .tab-content {
 body.mobile {
   font-size: 15px;
   display: block !important;
+  overflow-x: hidden !important;
 }
 
 body.mobile .tab-btn {
@@ -337,7 +338,9 @@ body.mobile aside {
   width: 100% !important;
   min-height: auto !important;
   height: auto !important;
+  border-right: none !important;
 }
+
 body.mobile main {
   padding: 12px !important;
 }
@@ -345,4 +348,23 @@ html,
 body {
   max-width: 100%;
   overflow-x: hidden;
+}
+
+body.mobile .flex-1 {
+  width: 100% !important;
+}
+body.mobile .w-64 {
+  width: 100% !important;
+}
+body.mobile .h-screen {
+  height: auto !important;
+  min-height: auto !important;
+}
+body.mobile .px-6 {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+body.mobile .py-4 {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
 }
