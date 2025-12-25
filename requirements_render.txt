@@ -17,3 +17,4 @@ aiosqlite
 cryptography
 gunicorn
 openpyxl
+itsdangerous
