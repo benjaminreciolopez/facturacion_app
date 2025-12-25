@@ -319,30 +319,38 @@
 <!-- TAB 5: PDF -->
 <!-- ===================================================== -->
 <div id="tab-pdf" class="tab-content">
-  <label class="form-label">Carpeta donde guardar los PDF</label>
+  <form action="/configuracion/emisor/ruta-pdf" method="post">
 
-  <input
-    type="text"
-    id="rutaPdf"
-    name="ruta_pdf"
-    class="form-control w-full"
-    value="{{ emisor.ruta_pdf or '' }}"
-    {% if env != 'production' %}readonly{% endif %}
-  />
+    <label class="form-label">Carpeta donde guardar los PDF</label>
 
-  {% if env != 'production' %}
-  <button
-    type="button"
-    id="btnElegirCarpeta"
-    class="btn btn-secondary mt-2"
-  >
-    Seleccionar carpeta
-  </button>
-  {% endif %}
+    <input
+      type="text"
+      id="rutaPdf"
+      name="ruta_pdf"
+      class="form-control w-full"
+      value="{{ emisor.ruta_pdf or '' }}"
+      {% if env == 'production' %}placeholder="Escriba aquí su ruta en servidor"{% endif %}
+      {% if env != 'production' %}readonly{% endif %}
+    />
+
+    {% if env != 'production' %}
+      <button
+        type="button"
+        id="btnElegirCarpeta"
+        class="btn btn-secondary mt-2"
+      >
+        Seleccionar carpeta
+      </button>
+    {% endif %}
+
+    <button class="btn btn-primary mt-4">
+      Guardar ruta PDF
+    </button>
+
+  </form>
 </div>
 
 <script>
-  // Render => env = "production" | Local => "development"
   const IS_PRODUCTION = "{{ env }}" === "production";
 
   if (!IS_PRODUCTION) {
@@ -359,16 +367,7 @@
         }
 
         document.getElementById("rutaPdf").value = data.carpeta;
-
-        const fd = new FormData();
-        fd.append("ruta_pdf", data.carpeta);
-
-        await fetch("/configuracion/emisor/ruta-pdf", {
-          method: "POST",
-          body: fd,
-        });
-
-        alert("Ruta guardada correctamente.");
+        alert("Carpeta seleccionada. Pulse Guardar para confirmar.");
       });
     }
   }
