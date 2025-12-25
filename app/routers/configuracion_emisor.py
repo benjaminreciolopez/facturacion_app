@@ -22,14 +22,17 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 # ⚠️ SOLO PARA USO LOCAL (DESARROLLO)
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
+try:
+    from tkinter import Tk
+    from tkinter.filedialog import askdirectory
+    TK_AVAILABLE = True
+except Exception:
+    TK_AVAILABLE = False
 
 router = APIRouter(prefix="/configuracion/emisor", tags=["Emisor"])
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = BASE_DIR / "app" / "static" / "uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
