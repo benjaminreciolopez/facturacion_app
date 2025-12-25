@@ -16,3 +16,4 @@ reportlab
 aiosqlite
 cryptography
 gunicorn
+openpyxl
