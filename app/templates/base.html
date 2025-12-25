@@ -380,5 +380,21 @@
         });
       }
     </script>
+    <script>
+      function setDeviceMode() {
+        const width = window.innerWidth;
+
+        if (width <= 900) {
+          document.body.classList.add("mobile");
+          document.body.classList.remove("desktop");
+        } else {
+          document.body.classList.add("desktop");
+          document.body.classList.remove("mobile");
+        }
+      }
+
+      setDeviceMode();
+      window.addEventListener("resize", setDeviceMode);
+    </script>
   </body>
 </html>

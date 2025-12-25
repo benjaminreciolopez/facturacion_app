@@ -269,56 +269,66 @@ input[type="date"] {
   display: block;
 }
 
-/* ============================================
-   MOBILE FIRST
-============================================ */
-
-@media (max-width: 768px) {
-  /* Formularios 1 columna */
-  .config-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .btn {
-    width: 100%;
-  }
-
-  #rutaPdf {
-    width: 100%;
-  }
-
-  .tab-btn {
-    font-size: 14px;
-  }
-
-  .tab-bar {
-    overflow-x: auto;
-    white-space: nowrap;
-  }
+/* ============================
+   MODO ESCRITORIO
+============================ */
+body.desktop .container,
+body.desktop main {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-/* ============================================
-   ESCRITORIO
-============================================ */
-@media (min-width: 769px) {
-  .config-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-  }
+body.desktop .tab-btn {
+  font-size: 15px;
+  padding: 10px 18px;
+}
 
-  .btn {
-    width: auto;
-  }
+body.desktop .tab-content {
+  padding: 20px;
+}
 
-  #rutaPdf {
-    max-width: 600px;
-  }
+/* ============================
+   MODO MÓVIL
+============================ */
+body.mobile {
+  font-size: 15px;
+}
 
-  .panel-box {
-    padding: 18px;
-  }
+body.mobile .tab-btn {
+  font-size: 14px;
+  padding: 8px 10px;
+}
 
-  .preview-box {
-    max-width: 420px;
-  }
+body.mobile .tab-btn {
+  display: inline-block;
+  overflow-x: auto;
+}
+
+body.mobile .tab-content {
+  padding: 12px;
+}
+
+/* Formularios más cómodos táctil */
+body.mobile .form-control {
+  font-size: 16px;
+  padding: 10px 12px;
+}
+
+/* Botones grandes accesibles */
+body.mobile .btn {
+  font-size: 16px;
+  padding: 10px 14px;
+}
+
+/* Tablas scroll horizontal en móvil */
+body.mobile table {
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+  border-spacing: 0;
+}
+
+body.mobile th,
+body.mobile td {
+  white-space: nowrap;
 }
