@@ -320,7 +320,7 @@
 <!-- ===================================================== -->
 <div id="tab-pdf" class="tab-content">
   <form action="/configuracion/emisor/ruta-pdf" method="post">
-
+    
     <label class="form-label">Carpeta donde guardar los PDF</label>
 
     <input
@@ -329,18 +329,31 @@
       name="ruta_pdf"
       class="form-control w-full"
       value="{{ emisor.ruta_pdf or '' }}"
-      {% if env == 'production' %}placeholder="Escriba aquí su ruta en servidor"{% endif %}
-      {% if env != 'production' %}readonly{% endif %}
+      {% if env == 'production' %}
+        placeholder="Ruta del servidor donde se guardarán los PDF"
+      {% endif %}
+      {% if env != 'production' %}
+        readonly
+      {% endif %}
     />
 
     {% if env != 'production' %}
-      <button
-        type="button"
-        id="btnElegirCarpeta"
-        class="btn btn-secondary mt-2"
-      >
-        Seleccionar carpeta
-      </button>
+    <!-- Picker de carpeta invisible -->
+    <input 
+      type="file" 
+      id="folderPicker"
+      webkitdirectory
+      directory
+      style="display:none"
+    />
+
+    <button
+      type="button"
+      id="btnElegirCarpeta"
+      class="btn btn-secondary mt-2"
+    >
+      Seleccionar carpeta
+    </button>
     {% endif %}
 
     <button class="btn btn-primary mt-4">
@@ -355,21 +368,21 @@
 
   if (!IS_PRODUCTION) {
     const btn = document.getElementById("btnElegirCarpeta");
+    const picker = document.getElementById("folderPicker");
+    const rutaInput = document.getElementById("rutaPdf");
 
-    if (btn) {
-      btn.addEventListener("click", async () => {
-        const resp = await fetch("/configuracion/emisor/seleccionar-carpeta");
-        const data = await resp.json();
+    btn.addEventListener("click", () => picker.click());
 
-        if (!data || !data.carpeta) {
-          alert(data.mensaje || "No seleccionaste ninguna carpeta.");
-          return;
-        }
+    picker.addEventListener("change", () => {
+      if (!picker.files.length) return;
 
-        document.getElementById("rutaPdf").value = data.carpeta;
-        alert("Carpeta seleccionada. Pulse Guardar para confirmar.");
-      });
-    }
+      // Obtenemos la carpeta base del primer archivo
+      const first = picker.files[0].webkitRelativePath;
+      const folder = first.split("/")[0];
+
+      rutaInput.value = folder;
+      alert("Carpeta seleccionada. Pulse Guardar para confirmar.");
+    });
   }
 </script>
 

@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     # ========================
     # DATABASE
     # ========================
-    DATABASE_URL: str = "sqlite:////data/facturacion.db"
-
+    if os.getenv("RENDER"):
+        DATABASE_URL: str = "sqlite:////data/facturacion.db"
+    else:
+        # Local: sin BD o futura ruta si la quisieras
+        DATABASE_URL: str | None = None
     # ========================
     # SECURITY / JWT
     # ========================
