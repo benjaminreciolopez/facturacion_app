@@ -292,6 +292,7 @@ body.desktop .tab-content {
 ============================ */
 body.mobile {
   font-size: 15px;
+  display: block !important;
 }
 
 body.mobile .tab-btn {
@@ -331,4 +332,17 @@ body.mobile table {
 body.mobile th,
 body.mobile td {
   white-space: nowrap;
+}
+body.mobile aside {
+  width: 100% !important;
+  min-height: auto !important;
+  height: auto !important;
+}
+body.mobile main {
+  padding: 12px !important;
+}
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
 }
