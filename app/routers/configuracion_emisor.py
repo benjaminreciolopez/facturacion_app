@@ -31,9 +31,24 @@ except Exception:
 
 router = APIRouter(prefix="/configuracion/emisor", tags=["Emisor"])
 
+ENV = os.environ.get("ENV", "development")
+
 BASE_DIR = Path(__file__).resolve().parents[2]
-UPLOAD_DIR = BASE_DIR / "app" / "static" / "uploads"
+
+if ENV == "production":
+    # Render → almacenamiento persistente
+    DATA_DIR = Path("/data")
+else:
+    # Local
+    DATA_DIR = BASE_DIR / "data"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+UPLOAD_DIR = DATA_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+CERT_DIR = DATA_DIR / "certs"
+CERT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # =========================================================
@@ -121,7 +136,8 @@ async def emisor_upload_logo(
     with open(path, "wb") as f:
         f.write(await file.read())
 
-    emisor.logo_path = f"/static/uploads/{filename}"
+    # Guardamos ruta REAL persistente
+    emisor.logo_path = str(path)
     session.commit()
 
     return RedirectResponse("/configuracion/emisor", status_code=303)
@@ -195,7 +211,7 @@ async def emisor_upload_certificado(
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    path = UPLOAD_DIR / "certificado.pfx"  # nombre interno normalizado
+    path = CERT_DIR / "certificado.pfx"
     with open(path, "wb") as f:
         f.write(await file.read())
 

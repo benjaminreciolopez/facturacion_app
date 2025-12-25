@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 from sqlalchemy import extract, func
 from datetime import date, timedelta, datetime
-
+import os
 from app.db.session import get_session
 from app.models.factura import Factura
 from app.models.cliente import Cliente
@@ -320,11 +320,22 @@ def dashboard(
     # -------------------------------------------------
     # RUTA DE PDFs
     # -------------------------------------------------
-    if not emisor or not emisor.ruta_pdf:
+    if not emisor or not (emisor.ruta_pdf and os.path.isdir(emisor.ruta_pdf)):
         alertas.append({
             "tipo": "warning",
             "mensaje": (
-                "No hay una ruta configurada para guardar los PDF de las facturas."
+                "No hay una carpeta válida configurada para guardar los PDF de las facturas. "
+                "Las facturas se podrán validar, pero no se generarán archivos PDF. "
+                "Configura una ruta local accesible desde el servidor en "
+                "Configuración → Emisor → Ruta PDF."
+            )
+        })
+    elif not os.access(emisor.ruta_pdf, os.W_OK):
+        alertas.append({
+            "tipo": "danger",
+            "mensaje": (
+                f"La carpeta configurada para los PDF no tiene permisos de escritura: "
+                f"{emisor.ruta_pdf}. Ajusta permisos o selecciona otra ruta."
             )
         })
 
