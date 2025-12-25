@@ -226,8 +226,19 @@ async def emisor_upload_certificado(
 def certificado_info(session: Session = Depends(get_session)):
     emisor = session.get(Emisor, 1)
 
-    if not emisor or not emisor.certificado_path:
-        return {"ok": False, "mensaje": "No hay certificado configurado"}
+    if not emisor:
+        print("DEBUG CERT: NO EXISTE EMISOR EN ESTA BD")
+        return {"ok": False, "mensaje": "No hay emisor en BD"}
+
+    print("DEBUG CERT: EMISOR EXISTE")
+    print("DEBUG CERT: certificado_path =", emisor.certificado_path)
+
+    if not emisor.certificado_path:
+        return {
+            "ok": False,
+            "mensaje": "Emisor sin certificado",
+            "debug": True
+        }
 
     try:
         with open(emisor.certificado_path, "rb") as f:
