@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # ========================
     # DATABASE
     # ========================
-    DATABASE_URL: str = "sqlite:///./facturacion.db"
+    DATABASE_URL: str = "sqlite:////data/facturacion.db"
 
     # ========================
     # SECURITY / JWT
