@@ -18,3 +18,4 @@ cryptography
 gunicorn
 openpyxl
 itsdangerous
+argon2-cffi
