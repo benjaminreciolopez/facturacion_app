@@ -315,57 +315,64 @@
       </button>
     </div>
 
-    <!-- ===================================================== -->
-    <!-- TAB 5: PDF -->
-    <!-- ===================================================== -->
-    <div id="tab-pdf" class="tab-content">
-      <label class="form-label">Carpeta donde guardar los PDF</label>
+<!-- ===================================================== -->
+<!-- TAB 5: PDF -->
+<!-- ===================================================== -->
+<div id="tab-pdf" class="tab-content">
+  <label class="form-label">Carpeta donde guardar los PDF</label>
 
-      <input
-        type="text"
-        id="rutaPdf"
-        name="ruta_pdf"
-        class="form-control w-full"
-        readonly
-        value="{{ emisor.ruta_pdf or '' }}"
-      />
+  <input
+    type="text"
+    id="rutaPdf"
+    name="ruta_pdf"
+    class="form-control w-full"
+    value="{{ emisor.ruta_pdf or '' }}"
+    {% if env != 'production' %}readonly{% endif %}
+  />
 
-      <button
-        type="button"
-        id="btnElegirCarpeta"
-        class="btn btn-secondary mt-2"
-      >
-        Seleccionar carpeta
-      </button>
-    </div>
+  {% if env != 'production' %}
+  <button
+    type="button"
+    id="btnElegirCarpeta"
+    class="btn btn-secondary mt-2"
+  >
+    Seleccionar carpeta
+  </button>
+  {% endif %}
+</div>
 
-    <script>
-      document
-        .getElementById("btnElegirCarpeta")
-        .addEventListener("click", async () => {
-          const resp = await fetch("/configuracion/emisor/seleccionar-carpeta");
-          const data = await resp.json();
+<script>
+  // Render => env = "production" | Local => "development"
+  const IS_PRODUCTION = "{{ env }}" === "production";
 
-          if (!data || !data.carpeta) {
-            alert("No seleccionaste ninguna carpeta.");
-            return;
-          }
+  if (!IS_PRODUCTION) {
+    const btn = document.getElementById("btnElegirCarpeta");
 
-          // Ruta absoluta real del sistema
-          document.getElementById("rutaPdf").value = data.carpeta;
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        const resp = await fetch("/configuracion/emisor/seleccionar-carpeta");
+        const data = await resp.json();
 
-          // Guardar automáticamente
-          const fd = new FormData();
-          fd.append("ruta_pdf", data.carpeta);
+        if (!data || !data.carpeta) {
+          alert(data.mensaje || "No seleccionaste ninguna carpeta.");
+          return;
+        }
 
-          await fetch("/configuracion/emisor/ruta-pdf", {
-            method: "POST",
-            body: fd,
-          });
+        document.getElementById("rutaPdf").value = data.carpeta;
 
-          alert("Ruta guardada correctamente.");
+        const fd = new FormData();
+        fd.append("ruta_pdf", data.carpeta);
+
+        await fetch("/configuracion/emisor/ruta-pdf", {
+          method: "POST",
+          body: fd,
         });
-    </script>
+
+        alert("Ruta guardada correctamente.");
+      });
+    }
+  }
+</script>
 
     <!-- ===================================================== -->
     <!-- TAB 6: SEGURIDAD -->

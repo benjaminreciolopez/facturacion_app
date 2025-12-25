@@ -62,6 +62,7 @@ def emisor_view(request: Request, session: Session = Depends(get_session)):
             "request": request,
             "emisor": emisor,
             "bloqueo_numeracion": existe_validada is not None,
+            "env": os.environ.get("ENV", "development"),
         },
     )
 
@@ -294,17 +295,39 @@ def guardar_ruta_pdf(
 # =========================================================
 @router.get("/seleccionar-carpeta", response_class=JSONResponse)
 def seleccionar_carpeta():
-    if os.environ.get("ENV") == "production":
-        raise HTTPException(403, "No disponible en servidor")
+    env = os.environ.get("ENV", "development")
 
+    # Si estamos en producción Render → no se permite seleccionar carpeta
+    if env == "production":
+        return {
+            "ok": False,
+            "mensaje": "Esta función solo está disponible en instalación local. En servidor debe configurarse manualmente la ruta."
+        }
+
+    # Si Tk no está disponible (ej. Linux sin entorno gráfico)
+    if not TK_AVAILABLE:
+        return {
+            "ok": False,
+            "mensaje": "Tu sistema local no soporta selector gráfico. Introduce la ruta manualmente."
+        }
+
+    # Si estamos en local y Tk funciona → abrir selector
     try:
         root = Tk()
         root.withdraw()
         carpeta = askdirectory()
-        return {"carpeta": carpeta}
-    except Exception as e:
-        return {"error": str(e)}
+        root.destroy()
 
+        return {
+            "ok": True,
+            "carpeta": carpeta or ""
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "mensaje": f"No fue posible abrir el selector: {e}"
+        }
 
 # =========================================================
 # NUMERACIÓN
