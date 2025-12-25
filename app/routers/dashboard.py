@@ -320,14 +320,12 @@ def dashboard(
     # -------------------------------------------------
     # RUTA DE PDFs
     # -------------------------------------------------
-    if not emisor or not (emisor.ruta_pdf and os.path.isdir(emisor.ruta_pdf)):
+    if not emisor or not (emisor.ruta_pdf and emisor.ruta_pdf.strip()):
         alertas.append({
-            "tipo": "warning",
+            "tipo": "info",
             "mensaje": (
-                "No hay una carpeta válida configurada para guardar los PDF de las facturas. "
-                "Las facturas se podrán validar, pero no se generarán archivos PDF. "
-                "Configura una ruta local accesible desde el servidor en "
-                "Configuración → Emisor → Ruta PDF."
+                "No hay ruta de servidor configurada para los PDFs. "
+                "Puedes seguir usando la carpeta local desde Configuración > PDF."
             )
         })
     elif not os.access(emisor.ruta_pdf, os.W_OK):
