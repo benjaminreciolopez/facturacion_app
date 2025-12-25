@@ -53,6 +53,44 @@ request.query_params.get("error") %}
     </tr>
     {% endfor %}
   </tbody>
+  <script>
+    function esMovil() {
+      return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(
+        navigator.userAgent
+      );
+    }
+
+    function bloquearIVAenMovil() {
+      if (!esMovil()) return;
+
+      // Bloquear inputs
+      document.querySelectorAll("input, select, textarea").forEach((el) => {
+        el.setAttribute("disabled", "disabled");
+      });
+
+      // Bloquear botones
+      document.querySelectorAll("button, .btn, a.btn").forEach((btn) => {
+        btn.setAttribute("disabled", "disabled");
+        btn.style.opacity = "0.6";
+        btn.style.pointerEvents = "none";
+      });
+
+      // Aviso
+      const aviso = document.createElement("div");
+      aviso.style.background = "#ffb200";
+      aviso.style.padding = "12px";
+      aviso.style.marginBottom = "10px";
+      aviso.style.borderRadius = "6px";
+      aviso.style.fontWeight = "bold";
+      aviso.innerText =
+        "La configuración de tipos de IVA solo puede modificarse desde un ordenador. En móvil el modo es solo lectura.";
+
+      const header = document.querySelector("h1, h2");
+      if (header) header.before(aviso);
+    }
+
+    document.addEventListener("DOMContentLoaded", bloquearIVAenMovil);
+  </script>
 </table>
 
 {% endblock %}

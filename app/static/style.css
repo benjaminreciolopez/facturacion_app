@@ -228,6 +228,17 @@ input[type="date"] {
     width: auto !important;
   }
 }
+@media (max-width: 900px) {
+  body.mobile #layout-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+  }
+
+  body.mobile aside {
+    position: fixed;
+  }
+}
+
 /* ============================================
    LAYOUT GENERAL RESPONSIVE
 ============================================ */

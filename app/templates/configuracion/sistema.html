@@ -197,6 +197,40 @@ function probarSMTP() {
   <button class="bg-blue-600 text-white px-6 py-2 rounded shadow">
     Guardar configuración
   </button>
+<script>
+function esMovil() {
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent);
+}
+
+function bloquearConfiguracionSistemaMovil() {
+  if (!esMovil()) return;
+
+  // Deshabilitar formularios
+  document.querySelectorAll("input, select, textarea").forEach(el => {
+    el.setAttribute("disabled", "disabled");
+  });
+
+  // Deshabilitar botones
+  document.querySelectorAll("button, .btn").forEach(btn => {
+    btn.setAttribute("disabled", "disabled");
+  });
+
+  // Aviso visible
+  const aviso = document.createElement("div");
+  aviso.style.background = "#ffb200";
+  aviso.style.padding = "12px";
+  aviso.style.marginBottom = "10px";
+  aviso.style.borderRadius = "6px";
+  aviso.style.fontWeight = "bold";
+  aviso.innerText =
+    "La configuración del sistema solo puede modificarse desde un ordenador. En móvil el modo es solo lectura.";
+
+  const header = document.querySelector("h1, h2");
+  if (header) header.before(aviso);
+}
+
+document.addEventListener("DOMContentLoaded", bloquearConfiguracionSistemaMovil);
+</script>
 
 </form>
 
