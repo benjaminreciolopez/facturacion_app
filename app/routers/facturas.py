@@ -529,30 +529,22 @@ def validar_factura(
         )
         raise
 
-    # 2) Comprobar ruta PDF
+    # 2) Comprobar ruta PDF pero NO bloquear si no existe
     emisor = session.get(Emisor, 1)
     ruta_base = (emisor.ruta_pdf or "").strip()
 
-    if not ruta_base or not os.path.isdir(ruta_base):
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura.id,
-            accion="VALIDAR",
-            resultado="BLOQUEADO",
-            nivel_evento="OPERATIVO",
-            motivo="Ruta PDF no configurada o inexistente",
-            ip=get_ip(request) if request else None,
-            user_agent=get_user_agent(request) if request else None,
-        )
-        return {"ok": False, "need_ruta_pdf": True}
+    usar_ruta_servidor = False
 
-    # 3) Comprobar orden cronológico
+    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+        usar_ruta_servidor = True
+
+    # 3) Comprobar orden cronológico SIEMPRE
     ultima = session.exec(
         select(Factura)
         .where(Factura.estado == "VALIDADA")
         .order_by(Factura.fecha.desc())
     ).first()
+
 
     if ultima and fecha < ultima.fecha:
         auditar(
@@ -657,16 +649,22 @@ def validar_factura(
     session.refresh(factura)
 
     # 8) Generar PDF
-    ruta_fisica, ruta_url = generar_factura_pdf(
-        factura=factura,
-        lineas=lineas,
-        ruta_base=ruta_base,
-        emisor=emisor,
-        config=config,
-        incluir_mensaje_iva=True,
-    )
+    pdf_file_path = None
+    pdf_url = None
 
-    factura.ruta_pdf = ruta_url
+    if usar_ruta_servidor:
+        ruta_fisica, ruta_url = generar_factura_pdf(
+            factura=factura,
+            lineas=lineas,
+            ruta_base=ruta_base,
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+        pdf_file_path = ruta_fisica
+        pdf_url = ruta_url
+
+    factura.ruta_pdf = pdf_url
     session.add(factura)
     session.commit()
 
@@ -682,7 +680,12 @@ def validar_factura(
         user_agent=get_user_agent(request) if request else None,
     )
 
-    return {"ok": True, "id": factura.id, "numero": numero}
+    return {
+        "ok": True,
+        "id": factura.id,
+        "numero": numero,
+        "pdf_en_servidor": usar_ruta_servidor
+    }
 
 @router.get("/min-date")
 def factura_min_date(session: Session = Depends(get_session)):
@@ -808,15 +811,32 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     config = session.get(ConfiguracionSistema, 1)
 
 
-    ruta_fisica, ruta_url = generar_factura_pdf(
-        factura=factura,
-        lineas=lineas,
-        ruta_base=ruta_base,
-        emisor=emisor,
-        config=config,          # ← CLAVE
-    )
-    factura.ruta_pdf = ruta_url
+    # ============================
+    # Generación PDF
+    # ============================
+    pdf_file_path = None
+    pdf_url = None
 
+    # Determinar si el servidor PUEDE generar y guardar PDFs
+    usar_ruta_servidor = False
+    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+        usar_ruta_servidor = True
+
+    if usar_ruta_servidor:
+        ruta_fisica, ruta_url = generar_factura_pdf(
+            factura=factura,
+            lineas=lineas,
+            ruta_base=ruta_base,
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+
+        pdf_file_path = ruta_fisica
+        pdf_url = ruta_url
+
+    # Guardar resultado en la factura
+    factura.ruta_pdf = pdf_url
     session.add(factura)
     session.commit()
 
@@ -898,8 +918,6 @@ def factura_anular(
     emisor = session.get(Emisor, 1)
     ruta_base = (emisor.ruta_pdf or "").strip()
 
-    if not ruta_base or not os.path.isdir(ruta_base):
-        return {"ok": False, "need_ruta_pdf": True}
     
 
     # ========= MENSAJE LEGAL RECTIFICATIVA =========
@@ -917,10 +935,11 @@ def factura_anular(
     # ============================
     factura.estado = "ANULADA"
     session.add(factura)
-    
-    #============================
-    # Verificar que no exista ya una rectificativa
-    #===========================
+
+    # ============================
+    # 2. Verificar si ya existe rectificativa
+    # ============================
+    numero_rect = f"{factura.numero}R"
 
     existe = session.exec(
         select(Factura).where(Factura.numero == numero_rect)
@@ -930,12 +949,10 @@ def factura_anular(
         return {"ok": False, "error": "Ya existe una rectificativa para esta factura."}
 
     # ============================
-    # 3) Crear RECTIFICATIVA (R)
+    # 3) Crear RECTIFICATIVA
     # ============================
-    numero_rect = f"{factura.numero}R"
-
     rect = Factura(
-        empresa_id=factura.empresa_id,   # 🔥 HEREDA EMPRESA
+        empresa_id=factura.empresa_id,
         cliente_id=factura.cliente_id,
         fecha=date.today(),
         numero=numero_rect,
@@ -948,14 +965,12 @@ def factura_anular(
     session.add(rect)
     session.flush()
 
-    # Inserta el mensaje legal en la factura rectificativa
     rect.mensaje_iva = texto_rect
 
     # ============================
-    # 4) Crear LÍNEAS NEGATIVAS
+    # 4) Crear líneas negativas
     # ============================
     iva_factura = factura.iva_global or 0
-
     originales = session.exec(
         select(LineaFactura).where(LineaFactura.factura_id == factura.id)
     ).all()
@@ -978,7 +993,6 @@ def factura_anular(
 
         subtotal += -base
         iva_total += -iva_calc
-
         session.add(nueva)
         lineas_rect.append(nueva)
 
@@ -987,21 +1001,25 @@ def factura_anular(
     rect.total = round(subtotal + iva_total, 2)
 
     session.commit()
+
     config = session.get(ConfiguracionSistema, 1)
 
     # ============================
-    # 5) GENERAR PDF DE RECTIFICATIVA
+    # 5) GENERAR PDF
     # ============================
-    ruta_fisica, ruta_url = generar_factura_pdf(
-        factura=rect,
-        lineas=lineas_rect,
-        ruta_base=ruta_base,
-        emisor=emisor,
-        config=config,
-        incluir_mensaje_iva=True,
-    )
+    pdf_url = None
+    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+        ruta_fisica, ruta_url = generar_factura_pdf(
+            factura=rect,
+            lineas=lineas_rect,
+            ruta_base=ruta_base,
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+        pdf_url = ruta_url
 
-    rect.ruta_pdf = ruta_url
+    rect.ruta_pdf = pdf_url
     session.add(rect)
     session.commit()
 
@@ -1058,11 +1076,14 @@ def factura_rectificar(
     # ============================
     # Ruta y textos del emisor
     # ============================
+    # 2) Comprobar ruta PDF pero NO bloquear si no existe
     emisor = session.get(Emisor, 1)
     ruta_base = (emisor.ruta_pdf or "").strip()
 
-    if not ruta_base or not os.path.isdir(ruta_base):
-        return {"ok": False, "need_ruta_pdf": True}
+    usar_ruta_servidor = False
+
+    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+        usar_ruta_servidor = True
 
     # ========= MENSAJE LEGAL RECTIFICATIVA =========
     texto_rect = (emisor.texto_rectificativa or "").strip()
@@ -1130,16 +1151,23 @@ def factura_rectificar(
     config = session.get(ConfiguracionSistema, 1)
 
     # PDF
-    ruta_fisica, ruta_url = generar_factura_pdf(
-        factura=rect,
-        lineas=lineas_rect,
-        ruta_base=ruta_base,
-        emisor=emisor,
-        config=config,
-        incluir_mensaje_iva=True,
-    )
+    pdf_file_path = None
+    pdf_url = None
 
-    rect.ruta_pdf = ruta_url
+    if usar_ruta_servidor:
+        ruta_fisica, ruta_url = generar_factura_pdf(
+            factura=rect,
+            lineas=lineas_rect,
+            ruta_base=ruta_base,
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+        pdf_file_path = ruta_fisica
+        pdf_url = ruta_url
+
+    rect.ruta_pdf = pdf_url
+    session.add(rect)
     session.commit()
 
     auditar(

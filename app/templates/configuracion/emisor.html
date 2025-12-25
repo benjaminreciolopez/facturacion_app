@@ -319,71 +319,188 @@
 <!-- TAB 5: PDF -->
 <!-- ===================================================== -->
 <div id="tab-pdf" class="tab-content">
-  <form action="/configuracion/emisor/ruta-pdf" method="post">
-    
-    <label class="form-label">Carpeta donde guardar los PDF</label>
+  <h3 class="mb-3">Guardado de PDF</h3>
 
+  <div class="alert alert-info mb-3">
+    <strong>Modo recomendado:</strong> guardar las facturas PDF directamente en
+    una carpeta de este equipo. Esta configuración se guarda por navegador y
+    por usuario. Si cambias de ordenador o navegador tendrás que elegir la
+    carpeta de nuevo.
+  </div>
+
+  <!-- PANEL MODO LOCAL -->
+  <div class="p-3 mb-3 border rounded bg-white shadow-sm">
+    <h4 class="mb-2">Carpeta local para los PDF</h4>
+
+    <p class="text-sm text-gray-600 mb-2">
+      Esta carpeta se usará para guardar los PDF de las facturas desde este
+      navegador usando la API nativa del navegador (File System Access).
+    </p>
+
+    <div class="mb-2">
+      <strong>Carpeta seleccionada:</strong>
+      <span id="pdfFolderLabel" class="ms-1">
+        Ninguna carpeta seleccionada
+      </span>
+    </div>
+
+    <button
+      type="button"
+      id="btnElegirCarpetaLocal"
+      class="btn btn-secondary mt-2"
+    >
+      Elegir carpeta en este equipo
+    </button>
+
+    <p
+      id="pdfFsWarning"
+      class="text-sm text-red-600 mt-3"
+      style="display: none"
+    >
+      Este navegador no soporta la selección directa de carpetas (File System
+      Access API). Prueba con la última versión de Chrome o Edge.
+    </p>
+  </div>
+
+  <!-- OPCIONAL: MODO SERVIDOR (si quieres seguir usando ruta_pdf en el backend) -->
+  <form action="/configuracion/emisor/ruta-pdf" method="post" class="mt-4">
+    <h4 class="mb-2">Ruta en servidor (opcional)</h4>
+    <p class="text-sm text-gray-600 mb-2">
+      Solo se usa si decides que el servidor (Render) siga guardando copias de
+      los PDF. En la mayoría de los casos, puedes dejarlo vacío si solo quieres
+      trabajar con la carpeta local de arriba.
+    </p>
+
+    <label class="form-label">Ruta en servidor</label>
     <input
       type="text"
       id="rutaPdf"
       name="ruta_pdf"
       class="form-control w-full"
       value="{{ emisor.ruta_pdf or '' }}"
-      {% if env == 'production' %}
-        placeholder="Ruta del servidor donde se guardarán los PDF"
-      {% endif %}
-      {% if env != 'production' %}
-        readonly
-      {% endif %}
+      placeholder="Ejemplo: /data/pdfs (Render) o una ruta local en modo escritorio"
     />
 
-    {% if env != 'production' %}
-    <!-- Picker de carpeta invisible -->
-    <input 
-      type="file" 
-      id="folderPicker"
-      webkitdirectory
-      directory
-      style="display:none"
-    />
-
-    <button
-      type="button"
-      id="btnElegirCarpeta"
-      class="btn btn-secondary mt-2"
-    >
-      Seleccionar carpeta
+    <button class="btn btn-primary mt-3">
+      Guardar ruta en servidor
     </button>
-    {% endif %}
-
-    <button class="btn btn-primary mt-4">
-      Guardar ruta PDF
-    </button>
-
   </form>
 </div>
 
-<script>
-  const IS_PRODUCTION = "{{ env }}" === "production";
+<script type="module">
+  // ============================
+  // File System Access API (local)
+  // ============================
 
-  if (!IS_PRODUCTION) {
-    const btn = document.getElementById("btnElegirCarpeta");
-    const picker = document.getElementById("folderPicker");
-    const rutaInput = document.getElementById("rutaPdf");
+  const folderLabel = document.getElementById("pdfFolderLabel");
+  const chooseBtn = document.getElementById("btnElegirCarpetaLocal");
+  const warningEl = document.getElementById("pdfFsWarning");
 
-    btn.addEventListener("click", () => picker.click());
+  const DB_NAME = "facturacion_app_pdf";
+  const STORE_NAME = "pdf_config";
+  const KEY = "pdfFolder";
 
-    picker.addEventListener("change", () => {
-      if (!picker.files.length) return;
+  function supportsFileSystemAccess() {
+    return "showDirectoryPicker" in window;
+  }
 
-      // Obtenemos la carpeta base del primer archivo
-      const first = picker.files[0].webkitRelativePath;
-      const folder = first.split("/")[0];
+  // Abrir / crear IndexedDB
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
 
-      rutaInput.value = folder;
-      alert("Carpeta seleccionada. Pulse Guardar para confirmar.");
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
     });
   }
+
+  // Guardar handle de carpeta
+  async function saveFolderHandle(handle) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      store.put(handle, KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // Cargar handle de carpeta (si existe)
+  async function loadFolderHandle() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(KEY);
+
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function initPdfFolderUi() {
+    if (!chooseBtn || !folderLabel) return;
+
+    if (!supportsFileSystemAccess()) {
+      warningEl.style.display = "block";
+      chooseBtn.disabled = true;
+      return;
+    }
+
+    warningEl.style.display = "none";
+
+    // Restaurar carpeta si el usuario ya concedió permiso antes
+    try {
+      const handle = await loadFolderHandle();
+      if (handle) {
+        // El permiso puede haberse revocado; comprobamos
+        const perm = await handle.queryPermission({ mode: "readwrite" });
+        if (perm === "granted") {
+          folderLabel.textContent = handle.name || "(carpeta seleccionada)";
+        } else {
+          folderLabel.textContent = "Permiso revocado. Vuelva a elegir carpeta.";
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudo recuperar la carpeta PDF:", e);
+    }
+
+    chooseBtn.addEventListener("click", async () => {
+      try {
+        const handle = await window.showDirectoryPicker({
+          id: "facturacion-pdfs",
+          mode: "readwrite",
+        });
+
+        await saveFolderHandle(handle);
+
+        folderLabel.textContent =
+          handle.name || "Carpeta seleccionada correctamente";
+
+        alert(
+          "Carpeta guardada en este navegador.\n" +
+            "A partir de ahora, cuando implementemos el guardado de PDF en local, se usará esta carpeta."
+        );
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          // Usuario canceló el diálogo, no hacemos nada
+          return;
+        }
+        console.error("Error seleccionando carpeta:", err);
+        alert("No se pudo seleccionar la carpeta. Revisa los permisos del navegador.");
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", initPdfFolderUi);
 </script>
 
     <!-- ===================================================== -->
