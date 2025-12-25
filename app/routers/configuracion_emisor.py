@@ -38,12 +38,7 @@ ENV = os.environ.get("ENV", "development")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
-if ENV == "production":
-    # Render → almacenamiento persistente
-    DATA_DIR = Path("/data")
-else:
-    # Local → carpeta propia del proyecto
-    DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path("/data") if Path("/data").exists() else (BASE_DIR / "data")
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
