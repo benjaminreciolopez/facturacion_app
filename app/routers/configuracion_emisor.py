@@ -31,6 +31,9 @@ except Exception:
 
 router = APIRouter(prefix="/configuracion/emisor", tags=["Emisor"])
 
+# =========================================================
+# DIRECTORIOS SEGÚN ENTORNO
+# =========================================================
 ENV = os.environ.get("ENV", "development")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -39,14 +42,16 @@ if ENV == "production":
     # Render → almacenamiento persistente
     DATA_DIR = Path("/data")
 else:
-    # Local
+    # Local → carpeta propia del proyecto
     DATA_DIR = BASE_DIR / "data"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# Subcarpeta para uploads generales (logo, etc.)
 UPLOAD_DIR = DATA_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Subcarpeta específica para certificado digital
 CERT_DIR = DATA_DIR / "certs"
 CERT_DIR.mkdir(parents=True, exist_ok=True)
 
