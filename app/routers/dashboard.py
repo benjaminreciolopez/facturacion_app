@@ -257,7 +257,7 @@ def dashboard(
             )
 
             # Compatibilidad con versiones antiguas y nuevas
-            fecha_exp = getattr(cert, "not_valid_after_utc", cert.not_valid_after)
+            fecha_exp = getattr(cert, "not_valid_after_utc", cert.not_valid_after_utc)
 
             now = datetime.now(timezone.utc)
             dias_restantes = (fecha_exp - now).days

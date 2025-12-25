@@ -791,10 +791,13 @@ panel.style.display = "block";
     }
   }
 
-  const certTab = document.querySelector("[data-tab='cert']");
-  if (certTab) {
-    certTab.addEventListener("click", cargarCertificado);
-  }
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    if (btn.dataset.tab === "cert") {
+      cargarCertificado();
+    }
+  });
+});
 
   const btnTest = document.getElementById("btnTestCert");
   if (btnTest) {
