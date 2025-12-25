@@ -652,9 +652,16 @@ function bloquearConfiguracionMovil() {
   });
 
   // Deshabilitar botones
-  document.querySelectorAll("button, .btn").forEach(btn => {
-    btn.setAttribute("disabled", "disabled");
-  });
+document.querySelectorAll("button, .btn").forEach(btn => {
+  if (
+    btn.id === "openSidebar" ||
+    btn.closest("#sidebar") ||
+    btn.closest("header")
+  ) return;
+
+  btn.setAttribute("disabled", "disabled");
+  btn.style.opacity = "0.6";
+});
 
   // Aviso
   const aviso = document.createElement("div");
