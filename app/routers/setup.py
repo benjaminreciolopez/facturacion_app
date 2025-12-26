@@ -15,7 +15,12 @@ from app.core.templates import templates
 
 
 @router.get("/setup")
-def setup_form(request: Request):
+def setup_form(request: Request, session: Session = Depends(get_session)):
+
+    existe = session.exec(select(User)).first()
+    if existe:
+        return RedirectResponse("/login", status_code=303)
+
     return templates.TemplateResponse(
         "setup/first_user.html",
         {"request": request, "error": None}
