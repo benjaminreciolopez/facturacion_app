@@ -154,14 +154,19 @@ async function cacheFirst(request) {
   const cached = await cache.match(request);
   if (cached) return cached;
 
-  const response = await fetch(request);
+  const response = await fetch(request, { credentials: "include" });
   cache.put(request, response.clone());
   return response;
 }
 
 async function networkFirst(request) {
   try {
-    const response = await fetch(request);
+    // reconstruimos la request para asegurar cookies
+    const newRequest = new Request(request, {
+      credentials: "include",
+    });
+
+    const response = await fetch(newRequest);
     const cache = await caches.open(DYNAMIC_CACHE);
     cache.put(request, response.clone());
     return response;
