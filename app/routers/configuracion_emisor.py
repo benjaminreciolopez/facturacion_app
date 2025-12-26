@@ -60,9 +60,16 @@ def is_mobile(request: Request) -> bool:
 @router.get("", response_class=HTMLResponse)
 def emisor_view(request: Request, session: Session = Depends(get_session)):
 
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
-        emisor = Emisor(id=1)
+        emisor = Emisor(empresa_id=empresa_id)
         session.add(emisor)
         session.commit()
 
@@ -70,6 +77,7 @@ def emisor_view(request: Request, session: Session = Depends(get_session)):
 
     existe_validada = session.exec(
         select(Factura)
+        .where(Factura.empresa_id == empresa_id)
         .where(Factura.estado == "VALIDADA")
         .where(Factura.fecha.between(date(year, 1, 1), date(year, 12, 31)))
     ).first()
@@ -134,7 +142,14 @@ async def emisor_upload_logo(request: Request,
     if is_mobile(request):
             raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
    
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -156,7 +171,14 @@ async def emisor_eliminar_logo(request: Request, session: Session = Depends(get_
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
    
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -194,7 +216,14 @@ def emisor_textos(request: Request,
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
    
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -225,7 +254,14 @@ async def emisor_upload_certificado(request: Request,
     if not filename.endswith((".pfx", ".p12")):
         raise HTTPException(400, "El certificado debe ser .pfx o .p12")
 
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -241,8 +277,14 @@ async def emisor_upload_certificado(request: Request,
 
 
 @router.get("/certificado/info", response_class=JSONResponse)
-def certificado_info(session: Session = Depends(get_session)):
-    emisor = session.get(Emisor, 1)
+def certificado_info(request: Request, session: Session = Depends(get_session)):
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
 
     if not emisor:
         print("DEBUG CERT: NO EXISTE EMISOR EN ESTA BD")
@@ -331,7 +373,14 @@ def guardar_ruta_pdf(request: Request,
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
     
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -392,7 +441,14 @@ def guardar_numeracion(request: Request,
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
     
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
@@ -423,8 +479,16 @@ def guardar_numeracion(request: Request,
 # API SEGURA
 # =========================================================
 @router.get("/api", response_class=JSONResponse)
-def emisor_api(session: Session = Depends(get_session)):
-    emisor = session.get(Emisor, 1)
+def emisor_api(request: Request, session: Session = Depends(get_session)):
+
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 

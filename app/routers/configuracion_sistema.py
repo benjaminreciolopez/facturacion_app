@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import smtplib
 from sqlmodel import Session, select
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.db.session import get_session
 from app.core.templates import templates
@@ -32,10 +32,13 @@ def ver_configuracion_sistema(
     ).first()
 
     if not config:
-        raise HTTPException(
-            status_code=500,
-            detail="Configuración del sistema no inicializada."
-        )
+            # Para multiempresa → crearla automáticamente
+            config = ConfiguracionSistema(
+                empresa_id=empresa_id,
+                actualizado_en=datetime.now(timezone.utc)
+            )
+            session.add(config)
+            session.commit()
 
     return templates.TemplateResponse(
         "configuracion/sistema.html",
@@ -44,7 +47,6 @@ def ver_configuracion_sistema(
             "config": config,
         }
     )
-
 
 @router.post("/sistema")
 def guardar_configuracion_sistema(
@@ -84,10 +86,8 @@ def guardar_configuracion_sistema(
     ).first()
 
     if not config:
-        raise HTTPException(
-            status_code=500,
-            detail="Configuración del sistema no inicializada."
-        )
+            config = ConfiguracionSistema(empresa_id=empresa_id)
+            session.add(config)
 
     # =========================
     # VALIDACIONES
@@ -145,13 +145,14 @@ def guardar_configuracion_sistema(
     config.auditoria_activa = auditoria_activa
     config.nivel_auditoria = nivel_auditoria
 
-    config.actualizado_en = datetime.utcnow()
+    config.actualizado_en = datetime.utcnow(timezone.utc)
 
     # =========================
     # SMTP (EMAIL)
     # =========================
     config.smtp_enabled = smtp_enabled is not None
     config.smtp_host = smtp_host or None
+
     if smtp_port:
         config.smtp_port = int(smtp_port)
     else:
@@ -179,10 +180,7 @@ def guardar_configuracion_sistema(
     session.add(config)
     session.commit()
 
-    return RedirectResponse(
-        url="/configuracion/sistema",
-        status_code=303
-    )
+    return RedirectResponse("/configuracion/sistema", status_code=303)
 
 
 
@@ -278,6 +276,12 @@ def test_smtp_manual(request: Request,
             ConfiguracionSistema.empresa_id == empresa_id
         )
     ).first()
+
+    if not config:
+        return JSONResponse(
+            {"ok": False, "msg": "No existe configuración para esta empresa"},
+            status_code=400
+        )
 
     # Prioridad: formulario > BD > default
     host = smtp_host if smtp_host not in (None, "") else config.smtp_host

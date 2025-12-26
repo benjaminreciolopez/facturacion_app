@@ -4,12 +4,17 @@ from fastapi import HTTPException
 from app.models.factura import Factura
 from app.models.emisor import Emisor
 from app.models.linea_factura import LineaFactura
+from app.models.emisor import Emisor
+import re
 
-def generar_numero_factura(session: Session, fecha: date) -> str:
-    from app.models.emisor import Emisor
-    emisor = session.exec(select(Emisor)).first()
+
+def generar_numero_factura(session: Session, fecha: date, empresa_id: int) -> str:
+    
+    emisor = session.exec(
+            select(Emisor).where(Emisor.empresa_id == empresa_id)
+        ).first()    
     if not emisor:
-        raise HTTPException(400, "No hay emisor configurado")
+        raise HTTPException(400, "No hay emisor configurado para esta empresa")
 
     year = fecha.year
 
@@ -26,7 +31,6 @@ def generar_numero_factura(session: Session, fecha: date) -> str:
     # ----------------------------------------------------
     # Procesar {NUM:0Nd}
     # ----------------------------------------------------
-    import re
 
     def repl_num(match):
         formato = match.group(1)  # Ejemplo: "04d"
@@ -36,34 +40,41 @@ def generar_numero_factura(session: Session, fecha: date) -> str:
     # Reemplazo flexible para {NUM:0Nd}
     numero = re.sub(r"\{NUM:(0\d+)d\}", repl_num, plantilla)
 
-    # Reemplazo simple {NUM}
-    numero = numero.replace("{NUM}", str(correlativo))
+    # Reemplazo simple {NUMERO}
+    numero = numero.replace("{NUMERO}", str(correlativo))
 
     # Reemplazo variables restantes
     numero = numero.replace("{SERIE}", emisor.serie_facturacion or "")
-    numero = numero.replace("{YEAR}", str(year))
-    numero = numero.replace("{MONTH}", f"{fecha.month:02d}")
+    numero = numero.replace("{AÑO}", str(year))
+    numero = numero.replace("{MES}", f"{fecha.month:02d}")
 
     # Incrementar correlativo
-    emisor.siguiente_numero += 1
+    emisor.siguiente_numero + 1
     session.add(emisor)
     session.commit()
 
     return numero
 
 
-def bloquear_numeracion(session: Session, fecha: date):
+def bloquear_numeracion(session: Session, fecha: date, empresa_id: int):
     """
     Se ejecuta automáticamente al validar la primera factura del año.
     Bloquea el modo de numeración hasta el año siguiente.
     """
 
-    emisor = session.get(Emisor, 1)
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+    if not emisor:
+        raise HTTPException(400, "No hay emisor configurado para esta empresa")
+    
     year = fecha.year
 
-    # Ya bloqueado para este año
-    if emisor.numeracion_bloqueada and emisor.anio_numeracion_bloqueada == year:
-        return
+    if (
+            emisor.numeracion_bloqueada
+            and emisor.anio_numeracion_bloqueada == year
+        ):
+            return
 
     emisor.numeracion_bloqueada = True
     emisor.anio_numeracion_bloqueada = year
