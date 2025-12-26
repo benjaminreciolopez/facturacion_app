@@ -1,6 +1,7 @@
 from fastapi import Request, HTTPException
 
 def get_empresa_id(request: Request):
+    print("SESSION >>>", request.session)
     empresa_id = request.session.get("empresa_id")
 
     # Si ya existe → OK
