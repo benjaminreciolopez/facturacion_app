@@ -64,24 +64,21 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-session-key")
 # ============================================================
 # MIDDLEWARE → ORDEN CORRECTO
 # ============================================================
-# 1️⃣ Auth primero (se ejecutará después)
-app.add_middleware(AuthMiddleware)
-
-# 2️⃣ First Run (se ejecutará antes que auth)
-app.add_middleware(FirstRunMiddleware)
-
-# 3️⃣ ÚLTIMO → SessionMiddleware (se ejecuta primero en runtime)
+# 3️⃣ primero en runtime
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
-
-    # 🔥 Necesario para que los POST via fetch lleven cookie en HTTPS
     same_site="none",
-    https_only=True,        # fuerza cookie segura en HTTPS
-
+    https_only=True,
     max_age=3600,
 )
+
+# 2️⃣ después
+app.add_middleware(FirstRunMiddleware)
+
+# 1️⃣ último
+app.add_middleware(AuthMiddleware)
 
 # ============================================================
 # PDF + STATIC
