@@ -1,0 +1,74 @@
+{% extends "base.html" %} {% block content %}
+
+<h2>Usuarios de la empresa</h2>
+
+{% if request.query_params.get("ok") %}
+<div class="alert alert-success">Usuario creado correctamente</div>
+{% endif %}
+
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>Email</th>
+      <th>Rol</th>
+      <th>Estado</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td>{{ u.email }}</td>
+      <td>{{ u.rol }}</td>
+      <td>
+        {% if u.activo %}
+        <span class="text-success">Activo</span>
+        {% else %}
+        <span class="text-danger">Inactivo</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if u.id != request.session.get("user").id %}
+        <a href="/usuarios/{{ u.id }}/toggle" class="btn btn-sm btn-warning">
+          {{ "Desactivar" if u.activo else "Activar" }}
+        </a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<hr />
+
+<h3>Crear nuevo usuario</h3>
+
+<form method="post" action="/usuarios/crear" class="row g-2">
+  <div class="col-md-4">
+    <input name="email" class="form-control" placeholder="Email" required />
+  </div>
+
+  <div class="col-md-3">
+    <input
+      type="password"
+      name="password"
+      class="form-control"
+      placeholder="Contraseña"
+      required
+    />
+  </div>
+
+  <div class="col-md-3">
+    <select name="rol" class="form-select">
+      <option value="user">Usuario</option>
+      <option value="admin">Administrador</option>
+    </select>
+  </div>
+
+  <div class="col-md-2">
+    <button class="btn btn-primary w-100">Crear</button>
+  </div>
+</form>
+
+{% endblock %}
