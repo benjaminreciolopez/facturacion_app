@@ -145,7 +145,7 @@ def guardar_configuracion_sistema(
     config.auditoria_activa = auditoria_activa
     config.nivel_auditoria = nivel_auditoria
 
-    config.actualizado_en = datetime.utcnow(timezone.utc)
+    config.actualizado_en = datetime.now(timezone.utc)
 
     # =========================
     # SMTP (EMAIL)
