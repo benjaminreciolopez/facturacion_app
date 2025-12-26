@@ -610,7 +610,7 @@ def validar_factura(
         return {"ok": False, "error": "Fecha inválida."}
 
     # 4) Numeración y datos finales
-    numero = generar_numero_factura(session, fecha)
+    numero = generar_numero_factura(session, fecha, empresa_id)
     factura.numero = numero
     factura.fecha = fecha
 
@@ -668,7 +668,7 @@ def validar_factura(
     factura.fecha_validacion = date.today()
 
     try:
-        bloquear_numeracion(session, fecha)
+        bloquear_numeracion(session, fecha, empresa_id)
     except HTTPException as e:
         # Si tu lógica fiscal bloquea la numeración (cierre de periodo, etc.)
         auditar(
