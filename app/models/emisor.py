@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class Emisor(SQLModel, table=True):
-    id: Optional[int] = Field(default=1, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     empresa_id: int = Field(foreign_key="empresa.id")
 
     # IDENTIFICACIÓN
