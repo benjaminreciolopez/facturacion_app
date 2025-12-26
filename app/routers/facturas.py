@@ -660,6 +660,7 @@ def validar_factura(
             ConfiguracionSistema.empresa_id == empresa_id
         )
     ).first()
+    print(">>>> FACTURA CAMBIADA EN MEMORIA", factura.estado)
 
     # 7) Validar factura definitivamente
     factura.estado = "VALIDADA"
@@ -699,6 +700,9 @@ def validar_factura(
 
     session.add(factura)
     session.commit()
+    session.commit()
+    print(">>>> COMMIT HECHO")
+
     session.refresh(factura)
 
     # 8) Generar PDF
