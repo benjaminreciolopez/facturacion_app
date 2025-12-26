@@ -502,6 +502,8 @@ def validar_factura(
     mensaje_iva: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    print("🔥 VALIDAR FACTURA — SESSION:", request.session)
+
     empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
