@@ -546,20 +546,7 @@ def validar_factura(
     try:
         validar_fecha_factura(fecha, session)
     except HTTPException as e:
-        # Error de negocio (por ejemplo 403/400)
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura.id,
-            accion="VALIDAR",
-            resultado="BLOQUEADO",
-            nivel_evento="FISCAL",
-            motivo=e.detail,
-            ip=get_ip(request) if request else None,
-            user_agent=get_user_agent(request) if request else None,
-        )
-        print(">>>> SALE POR:", "motivo textual aquí")
-
+        print("🔥 BLOQUEO HTTP:", e.detail)
         return {"ok": False, "error": e.detail}
     except Exception as e:
         # Error inesperado (500)
@@ -636,22 +623,9 @@ def validar_factura(
     try:
         verificar_verifactu(factura, session)
     except HTTPException as e:
-        print("ERROR VERIFACTU >>>", e.detail)
-
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura.id,
-            accion="VALIDAR",
-            resultado="BLOQUEADO",
-            nivel_evento="FISCAL",
-            motivo=e.detail,
-            ip=get_ip(request) if request else None,
-            user_agent=get_user_agent(request) if request else None,
-        )
-        print(">>>> SALE POR:", "motivo textual aquí")
-
+        print("🔥 BLOQUEO HTTP:", e.detail)
         return {"ok": False, "error": e.detail}
+    
     except Exception as e:
         auditar(
             session,
@@ -681,22 +655,9 @@ def validar_factura(
     try:
         bloquear_numeracion(session, fecha, empresa_id)
     except HTTPException as e:
-        # Si tu lógica fiscal bloquea la numeración (cierre de periodo, etc.)
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura.id,
-            accion="VALIDAR",
-            resultado="BLOQUEADO",
-            nivel_evento="FISCAL",
-            motivo=e.detail,
-            ip=get_ip(request) if request else None,
-            user_agent=get_user_agent(request) if request else None,
-        )
-        session.rollback()
-        print(">>>> SALE POR:", "motivo textual aquí")
-
+        print("🔥 BLOQUEO HTTP:", e.detail)
         return {"ok": False, "error": e.detail}
+    
     except Exception as e:
         auditar(
             session,
