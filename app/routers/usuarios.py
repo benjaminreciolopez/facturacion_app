@@ -120,17 +120,14 @@ def eliminar_usuario(
     user_id: int,
     session: Session = Depends(get_session)
 ):
-    user_session = require_admin(request)
-    empresa_id = user_session["empresa_id"]
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada")
 
     user = session.get(User, user_id)
 
     if not user or user.empresa_id != empresa_id:
         raise HTTPException(404, "Usuario no encontrado")
-
-    # No permitir eliminarse a sí mismo
-    if user.id == user_session["id"]:
-        return RedirectResponse("/usuarios?error=selfdelete", status_code=303)
 
     # No permitir borrar al último admin
     admins = session.exec(
@@ -142,15 +139,14 @@ def eliminar_usuario(
     ).all()
 
     if user.rol == "admin" and len(admins) <= 1:
-        return RedirectResponse("/usuarios?error=lastadmin", status_code=303)
+        raise HTTPException(400, "No puedes eliminar el único administrador del sistema")
 
-    # Soft delete
+    # Solo desactivar (soft delete simple)
     user.activo = False
-    user.eliminado_en = datetime.utcnow()
 
     session.add(user)
     session.commit()
 
-    return RedirectResponse("/usuarios?ok=deleted", status_code=303)
+    return {"ok": True}
 
 # ============================================================
