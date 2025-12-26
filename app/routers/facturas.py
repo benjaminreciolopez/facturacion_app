@@ -520,6 +520,8 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": "Factura no encontrada."}
 
     if factura.estado == "VALIDADA":
@@ -534,6 +536,8 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": "La factura ya está validada."}
 
     # ============================
@@ -554,6 +558,8 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": e.detail}
     except Exception as e:
         # Error inesperado (500)
@@ -606,6 +612,8 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": "Fecha inválida."}
 
     # 4) Numeración y datos finales
@@ -639,6 +647,8 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": e.detail}
     except Exception as e:
         auditar(
@@ -682,6 +692,8 @@ def validar_factura(
             user_agent=get_user_agent(request) if request else None,
         )
         session.rollback()
+        print(">>>> SALE POR:", "motivo textual aquí")
+
         return {"ok": False, "error": e.detail}
     except Exception as e:
         auditar(
@@ -699,7 +711,6 @@ def validar_factura(
         raise
 
     session.add(factura)
-    session.commit()
     session.commit()
     print(">>>> COMMIT HECHO")
 
