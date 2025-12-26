@@ -641,6 +641,7 @@
 
         const resp = await fetch(`/facturas/${id}/anular`, {
           method: "POST",
+          credentials: "include",
         });
         const out = await resp.json();
 
@@ -672,6 +673,7 @@
 
         const resp = await fetch(`/facturas/${id}/rectificar`, {
           method: "POST",
+          credentials: "include",
         });
         const out = await resp.json();
 
@@ -725,7 +727,9 @@
       typeof data.total === "number" ? data.total : Number(data.total || 0);
     document.getElementById("val-total").textContent = total.toFixed(2) + " €";
 
-    fetch("/facturas/min-date")
+    fetch("/facturas/min-date", {
+      credentials: "include",
+    })
       .then((r) => r.json())
       .then((out) => {
         const inputFecha = document.getElementById("val-fecha");
@@ -750,6 +754,7 @@
     const resp = await fetch(`/facturas/${FACTURA_A_VALIDAR.id}/validar`, {
       method: "POST",
       body: fd,
+      credentials: "include",
     });
 
     const out = await resp.json();
@@ -838,6 +843,7 @@
       const res = await fetch(`/facturas/${facturaSeleccionada}/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           para,
           asunto,
@@ -916,6 +922,7 @@
             f.append("fecha", fecha);
             return f;
           })(),
+          credentials: "include",
         }
       );
 
