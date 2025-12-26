@@ -1,31 +1,27 @@
 from fastapi import Request, HTTPException
 
+def get_empresa_id(request: Request) -> int:
+    session = request.session or {}
+    print("SESSION >>>", session)
 
-def get_empresa_id(request: Request):
-    print("SESSION >>>", request.session)
+    empresa = session.get("empresa_id")
 
-    # =========================
-    # 1) SI EXISTE EN SESIÓN → OK
-    # =========================
-    if "empresa_id" in request.session and request.session["empresa_id"] is not None:
-        return request.session["empresa_id"]
+    # Si ya existe y no es None
+    if empresa is not None:
+        try:
+            return int(empresa)
+        except:
+            pass
 
-    # =========================
-    # 2) INTENTAR RECUPERAR DESDE USER
-    # =========================
-    user = request.session.get("user")
+    # Intentar recuperar del usuario autenticado
+    user = session.get("user")
     if user:
-        empresa_id = user.get("empresa_id")
+        empresa_user = user.get("empresa_id")
+        if empresa_user is not None:
+            empresa_user = int(empresa_user)
+            session["empresa_id"] = empresa_user
+            print(">>> Recuperado empresa_id desde USER:", empresa_user)
+            return empresa_user
 
-        if empresa_id:
-            # Guardar en sesión para futuras peticiones
-            request.session["empresa_id"] = empresa_id
-            return empresa_id
-
-    # =========================
-    # 3) NO HAY EMPRESA → ERROR CONTROLADO
-    # =========================
-    raise HTTPException(
-        status_code=401,
-        detail="Empresa no seleccionada en sesión"
-    )
+    print(">>> ERROR: Empresa NO en sesión")
+    raise HTTPException(401, "Empresa no seleccionada en sesión")
