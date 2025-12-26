@@ -17,7 +17,7 @@ router = APIRouter(tags=["Registro"])
 @router.get("/registro")
 def registro_form(request: Request):
     return templates.TemplateResponse(
-        "auth/registro.html",
+        "registro.html",
         {"request": request, "error": None}
     )
 
@@ -41,7 +41,7 @@ def registro_submit(
 
     if existe_user:
         return templates.TemplateResponse(
-            "auth/registro.html",
+            "registro.html",
             {
                 "request": request,
                 "error": "Ese email ya está registrado"
