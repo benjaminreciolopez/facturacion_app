@@ -7,7 +7,7 @@ from app.db.session import get_session
 from app.models.user import User
 from app.core.security import get_password_hash
 from app.models.configuracion_sistema import ConfiguracionSistema
-from datetime import datetime
+from datetime import datetime, timezone as UTC
 
 
 router = APIRouter(tags=["Setup"])
@@ -85,9 +85,26 @@ def setup_create(
     if not config:
         config = ConfiguracionSistema(
             empresa_id=empresa_id,
-            actualizado_en=datetime.utcnow()
+            actualizado_en=datetime.now(UTC)
         )
         session.add(config)
+    # =========================
+    # EMISOR BASE
+    # =========================
+    from app.models.emisor import Emisor
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        emisor = Emisor(
+            empresa_id=empresa_id,
+            nombre=empresa.nombre,
+            nif=empresa.cif,
+        )
+        session.add(emisor)
+
 
     session.commit()
     return RedirectResponse("/login", status_code=302)
