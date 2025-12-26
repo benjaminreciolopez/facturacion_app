@@ -38,6 +38,7 @@ from app.core.templates import templates
 from app.routers.facturas_offline import api_router as offline_api_router
 from app.routers.offline import router as offline_router
 from app.routers import registro
+from app.routers import usuarios
 
 router = APIRouter()
 
@@ -186,4 +187,5 @@ app.include_router(perfil_router)
 app.include_router(offline_api_router)
 app.include_router(offline_router)
 app.include_router(registro.router)
+app.include_router(usuarios.router)
 
