@@ -544,7 +544,7 @@ def validar_factura(
     # 1) Validar fecha
     # ============================
     try:
-        validar_fecha_factura(fecha, session)
+        validar_fecha_factura(fecha, session, empresa_id=empresa_id)
     except HTTPException as e:
         print("🔥 BLOQUEO HTTP:", e.detail)
         return {"ok": False, "error": e.detail}
