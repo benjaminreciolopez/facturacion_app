@@ -636,6 +636,8 @@ def validar_factura(
     try:
         verificar_verifactu(factura, session)
     except HTTPException as e:
+        print("ERROR VERIFACTU >>>", e.detail)
+
         auditar(
             session,
             entidad="FACTURA",
