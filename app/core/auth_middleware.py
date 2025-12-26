@@ -27,6 +27,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/setup",
             "/logout",
             "/registro",
+            "/usuarios",
             "/pin",
             "/static",
             "/pdf",
