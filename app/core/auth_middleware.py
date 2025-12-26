@@ -15,6 +15,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         logger.debug(f"[AUTH] PATH: {path}")
 
+        if "session" not in request.scope:
+            return await call_next(request)
+
 
         session = request.session
         logger.debug(f"[AUTH] SESSION: {session}")
