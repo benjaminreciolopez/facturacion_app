@@ -34,6 +34,15 @@ def get_config(session: Session, *, empresa_id: int) -> ConfiguracionSistema:
 # ============================================================
 
 def verificar_verifactu(factura: Factura, session: Session):
+    
+    config = session.exec(
+        select(ConfiguracionSistema)
+        .where(ConfiguracionSistema.empresa_id == factura.empresa_id)
+    ).first()
+
+    if not config or config.verifactu_modo == "OFF":
+        print(">>> VeriFactu OFF — no se aplica control fiscal")
+        return
 
     empresa_id = factura.empresa_id
     if not empresa_id:
