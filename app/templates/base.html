@@ -69,6 +69,8 @@
         <nav class="flex flex-col space-y-3 relative z-10">
           {% if request.url.path != '/dashboard' %}
           <a href="/dashboard" class="nav-link">Dashboard</a>
+          {% if u and u.rol == "admin" %}
+          <a href="/usuarios" class="nav-link">Usuarios</a>
           {% endif %}
 
           <a href="/clientes" class="nav-link">Clientes</a>

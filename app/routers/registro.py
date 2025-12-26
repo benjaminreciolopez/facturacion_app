@@ -8,6 +8,7 @@ from app.core.security import get_password_hash
 from app.core.templates import templates
 
 from app.models.user import User
+from app.models.emisor import Emisor
 from app.models.empresa import Empresa
 from app.models.configuracion_sistema import ConfiguracionSistema
 
@@ -31,9 +32,8 @@ def registro_submit(
     password: str = Form(...),
     session: Session = Depends(get_session),
 ):
-
     # =============================
-    # VALIDACIONES
+    # VALIDAR EMAIL
     # =============================
     existe_user = session.exec(
         select(User).where(User.email == email)
@@ -42,27 +42,43 @@ def registro_submit(
     if existe_user:
         return templates.TemplateResponse(
             "registro.html",
-            {
-                "request": request,
-                "error": "Ese email ya está registrado"
-            },
-            status_code=400
+            {"request": request, "error": "Ese email ya está registrado"},
+            status_code=400,
         )
+
+    # =============================
+    # VALIDAR CIF (solo si se envía)
+    # =============================
+    cif = (cif or "").strip() or None
+
+    if cif:
+        existe_empresa = session.exec(
+            select(Empresa).where(Empresa.cif == cif)
+        ).first()
+
+        if existe_empresa:
+            return templates.TemplateResponse(
+                "registro.html",
+                {
+                    "request": request,
+                    "error": "Ya existe una empresa con ese CIF",
+                },
+                status_code=400,
+            )
 
     # =============================
     # CREAR EMPRESA
     # =============================
     empresa = Empresa(
         nombre=nombre_empresa.strip(),
-        cif=(cif or "").strip() or None,
+        cif=cif,
         activa=True,
     )
-
     session.add(empresa)
-    session.flush()  # para obtener empresa.id
+    session.flush()  # obtener empresa.id
 
     # =============================
-    # CREAR USUARIO ADMIN
+    # CREAR ADMIN
     # =============================
     user = User(
         email=email.strip(),
@@ -71,16 +87,25 @@ def registro_submit(
         activo=True,
         empresa_id=empresa.id,
     )
-
     session.add(user)
 
     # =============================
-    # CONFIG SISTEMA BÁSICA
+    # CONFIG SISTEMA
     # =============================
     config = ConfiguracionSistema(id=empresa.id)
     config.actualizado_en = datetime.utcnow()
-
     session.add(config)
+
+    # =============================
+    # CREAR EMISOR BASE
+    # =============================
+
+    emisor = Emisor(
+        empresa_id=empresa.id,
+        nombre=nombre_empresa.strip(),
+        nif=cif,
+    )
+    session.add(emisor)
 
     session.commit()
 
