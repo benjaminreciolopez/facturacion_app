@@ -1,6 +1,12 @@
 {% extends "base.html" %} {% block content %}
 
-<h2>Usuarios de la empresa</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Usuarios de la empresa</h2>
+
+  <button class="btn btn-primary" onclick="nuevoUsuario()">
+    Añadir usuario
+  </button>
+</div>
 
 <table class="table table-bordered">
   <thead>
@@ -48,6 +54,66 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+  /* ===========================
+   CREAR USUARIO
+=========================== */
+  async function nuevoUsuario() {
+    const { value: formValues } = await Swal.fire({
+      title: "Nuevo usuario",
+      html: `
+      <input id="email" class="swal2-input" placeholder="Email">
+      <input id="password" type="password" class="swal2-input" placeholder="Contraseña">
+
+      <select id="rol" class="swal2-input">
+        <option value="user">Usuario</option>
+        <option value="admin">Administrador</option>
+      </select>
+    `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: "Crear usuario",
+      cancelButtonText: "Cancelar",
+      preConfirm: () => {
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const rol = document.getElementById("rol").value;
+
+        if (!email || !password) {
+          Swal.showValidationMessage("Email y contraseña obligatorios");
+          return false;
+        }
+
+        return { email, password, rol };
+      },
+    });
+
+    if (!formValues) return;
+
+    const resp = await fetch("/usuarios/crear", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(formValues),
+    });
+
+    if (!resp.ok) {
+      Swal.fire("Error", "No se pudo crear el usuario", "error");
+      return;
+    }
+
+    Swal.fire({
+      icon: "success",
+      title: "Usuario creado",
+      timer: 1200,
+      showConfirmButton: false,
+    });
+
+    // Recargar lista rápido o podríamos AJAX real
+    setTimeout(() => location.reload(), 1200);
+  }
+
+  /* ===========================
+   ELIMINAR USUARIO
+=========================== */
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest(".eliminar-btn");
     if (!btn) return;
@@ -56,7 +122,7 @@
 
     const confirm = await Swal.fire({
       title: "¿Eliminar usuario?",
-      text: "Esta acción desactivará el usuario",
+      text: "Esta acción eliminará el usuario definitivamente",
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d33",
@@ -67,22 +133,15 @@
 
     if (!confirm.isConfirmed) return;
 
-    const resp = await fetch(`/usuarios/${id}/delete`, {
-      method: "POST",
-    });
-
-    if (!resp.ok) {
-      Swal.fire("Error", "No se pudo eliminar el usuario", "error");
-      return;
-    }
+    const resp = await fetch(`/usuarios/${id}/delete`, { method: "POST" });
 
     const data = await resp.json();
-    if (!data.ok) {
+
+    if (!resp.ok || !data.ok) {
       Swal.fire("Error", "No se pudo eliminar el usuario", "error");
       return;
     }
 
-    // eliminar fila sin recargar
     const fila = document.getElementById("row-" + id);
     if (fila) fila.remove();
 

@@ -129,22 +129,19 @@ def eliminar_usuario(
     if not user or user.empresa_id != empresa_id:
         raise HTTPException(404, "Usuario no encontrado")
 
-    # No permitir borrar al último admin
+    # ---- No permitir eliminar el último admin activo ----
     admins = session.exec(
         select(User).where(
             User.empresa_id == empresa_id,
-            User.rol == "admin",
-            User.activo == True
+            User.rol == "admin"
         )
     ).all()
 
     if user.rol == "admin" and len(admins) <= 1:
         raise HTTPException(400, "No puedes eliminar el único administrador del sistema")
 
-    # Solo desactivar (soft delete simple)
-    user.activo = False
-
-    session.add(user)
+    # ---- Eliminación DEFINITIVA ----
+    session.delete(user)
     session.commit()
 
     return {"ok": True}
