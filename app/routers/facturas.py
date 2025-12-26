@@ -823,7 +823,7 @@ def factura_next_number(request: Request,
 
 
 @router.get("/{factura_id}/generar-pdf", response_class=HTMLResponse)
-def factura_generar_pdf(factura_id: int, request: Request, session: Session = Depends(get_session)):
+def factura_generar_pdf(request: Request, factura_id: int, session: Session = Depends(get_session)):
 
     empresa_id = get_empresa_id(request)
 
@@ -953,11 +953,7 @@ def factura_delete(request: Request,
     return RedirectResponse("/facturas", status_code=303)
 
 @router.post("/{factura_id}/anular")
-def factura_anular(
-    factura_id: int,
-    request: Request,
-    session: Session = Depends(get_session)
-):
+def factura_anular(request: Request, factura_id: int, session: Session = Depends(get_session)):
 
     empresa_id = get_empresa_id(request)
 

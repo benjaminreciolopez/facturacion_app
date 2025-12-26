@@ -75,8 +75,11 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
-    same_site="lax",
-    https_only=False,
+
+    # 🔥 Necesario para que los POST via fetch lleven cookie en HTTPS
+    same_site="none",
+    https_only=True,        # fuerza cookie segura en HTTPS
+
     max_age=3600,
 )
 
