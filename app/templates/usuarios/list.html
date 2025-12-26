@@ -2,12 +2,6 @@
 
 <h2>Usuarios de la empresa</h2>
 
-{% if request.query_params.get("ok") %}
-<div class="alert alert-success">Usuario creado correctamente</div>
-{% endif %} {% if request.query_params.get("error") == "email" %}
-<div class="alert alert-danger">Ese email ya existe</div>
-{% endif %}
-
 <table class="table table-bordered">
   <thead>
     <tr>
@@ -18,9 +12,9 @@
     </tr>
   </thead>
 
-  <tbody>
+  <tbody id="tablaUsuarios">
     {% for u in usuarios %}
-    <tr>
+    <tr id="row-{{ u.id }}">
       <td>{{ u.email }}</td>
       <td>{{ u.rol }}</td>
 
@@ -38,14 +32,12 @@
           {{ "Desactivar" if u.activo else "Activar" }}
         </a>
 
-        <form
-          method="post"
-          action="/usuarios/{{ u.id }}/delete"
-          style="display: inline"
-          onsubmit="return confirm('¿Seguro que deseas eliminar este usuario?')"
+        <button
+          class="btn btn-danger btn-sm ms-2 eliminar-btn"
+          data-user-id="{{ u.id }}"
         >
-          <button class="btn btn-sm btn-danger">Eliminar</button>
-        </form>
+          Eliminar
+        </button>
         {% endif %}
       </td>
     </tr>
@@ -53,35 +45,54 @@
   </tbody>
 </table>
 
-<hr />
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<h3>Crear nuevo usuario</h3>
+<script>
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".eliminar-btn");
+    if (!btn) return;
 
-<form method="post" action="/usuarios/crear" class="row g-2">
-  <div class="col-md-4">
-    <input name="email" class="form-control" placeholder="Email" required />
-  </div>
+    const id = btn.dataset.userId;
 
-  <div class="col-md-3">
-    <input
-      type="password"
-      name="password"
-      class="form-control"
-      placeholder="Contraseña"
-      required
-    />
-  </div>
+    const confirm = await Swal.fire({
+      title: "¿Eliminar usuario?",
+      text: "Esta acción desactivará el usuario",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+    });
 
-  <div class="col-md-3">
-    <select name="rol" class="form-select">
-      <option value="user">Usuario</option>
-      <option value="admin">Administrador</option>
-    </select>
-  </div>
+    if (!confirm.isConfirmed) return;
 
-  <div class="col-md-2">
-    <button class="btn btn-primary w-100">Crear</button>
-  </div>
-</form>
+    const resp = await fetch(`/usuarios/${id}/delete`, {
+      method: "POST",
+    });
+
+    if (!resp.ok) {
+      Swal.fire("Error", "No se pudo eliminar el usuario", "error");
+      return;
+    }
+
+    const data = await resp.json();
+    if (!data.ok) {
+      Swal.fire("Error", "No se pudo eliminar el usuario", "error");
+      return;
+    }
+
+    // eliminar fila sin recargar
+    const fila = document.getElementById("row-" + id);
+    if (fila) fila.remove();
+
+    Swal.fire({
+      title: "Usuario eliminado",
+      icon: "success",
+      timer: 1200,
+      showConfirmButton: false,
+    });
+  });
+</script>
 
 {% endblock %}
