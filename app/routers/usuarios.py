@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session, select
-
+from datetime import datetime
 from app.db.session import get_session
 from app.models.user import User
 from app.core.templates import templates
@@ -32,7 +32,9 @@ def usuarios_list(
     user_session = require_admin(request)
 
     usuarios = session.exec(
-        select(User).where(User.empresa_id == user_session["empresa_id"])
+        select(User)
+        .where(User.empresa_id == user_session["empresa_id"])
+        .where(User.activo == True)          # <<< SOLO usuarios activos
     ).all()
 
     return templates.TemplateResponse(
@@ -111,4 +113,44 @@ def usuario_toggle(
     session.commit()
 
     return RedirectResponse("/usuarios", status_code=303)
+
+@router.post("/{user_id}/delete")
+def eliminar_usuario(
+    request: Request,
+    user_id: int,
+    session: Session = Depends(get_session)
+):
+    user_session = require_admin(request)
+    empresa_id = user_session["empresa_id"]
+
+    user = session.get(User, user_id)
+
+    if not user or user.empresa_id != empresa_id:
+        raise HTTPException(404, "Usuario no encontrado")
+
+    # No permitir eliminarse a sí mismo
+    if user.id == user_session["id"]:
+        return RedirectResponse("/usuarios?error=selfdelete", status_code=303)
+
+    # No permitir borrar al último admin
+    admins = session.exec(
+        select(User).where(
+            User.empresa_id == empresa_id,
+            User.rol == "admin",
+            User.activo == True
+        )
+    ).all()
+
+    if user.rol == "admin" and len(admins) <= 1:
+        return RedirectResponse("/usuarios?error=lastadmin", status_code=303)
+
+    # Soft delete
+    user.activo = False
+    user.eliminado_en = datetime.utcnow()
+
+    session.add(user)
+    session.commit()
+
+    return RedirectResponse("/usuarios?ok=deleted", status_code=303)
+
 # ============================================================

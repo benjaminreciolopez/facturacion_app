@@ -4,6 +4,8 @@
 
 {% if request.query_params.get("ok") %}
 <div class="alert alert-success">Usuario creado correctamente</div>
+{% endif %} {% if request.query_params.get("error") == "email" %}
+<div class="alert alert-danger">Ese email ya existe</div>
 {% endif %}
 
 <table class="table table-bordered">
@@ -12,7 +14,7 @@
       <th>Email</th>
       <th>Rol</th>
       <th>Estado</th>
-      <th>Acciones</th>
+      <th style="width: 220px">Acciones</th>
     </tr>
   </thead>
 
@@ -21,6 +23,7 @@
     <tr>
       <td>{{ u.email }}</td>
       <td>{{ u.rol }}</td>
+
       <td>
         {% if u.activo %}
         <span class="text-success">Activo</span>
@@ -28,11 +31,21 @@
         <span class="text-danger">Inactivo</span>
         {% endif %}
       </td>
+
       <td>
         {% if u.id != request.session.get("user").id %}
         <a href="/usuarios/{{ u.id }}/toggle" class="btn btn-sm btn-warning">
           {{ "Desactivar" if u.activo else "Activar" }}
         </a>
+
+        <form
+          method="post"
+          action="/usuarios/{{ u.id }}/delete"
+          style="display: inline"
+          onsubmit="return confirm('¿Seguro que deseas eliminar este usuario?')"
+        >
+          <button class="btn btn-sm btn-danger">Eliminar</button>
+        </form>
         {% endif %}
       </td>
     </tr>
