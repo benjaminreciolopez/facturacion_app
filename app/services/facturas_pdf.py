@@ -52,7 +52,8 @@ def generar_factura_pdf(
     carpeta_destino = os.path.join(ruta_base, año, trimestre)
     os.makedirs(carpeta_destino, exist_ok=True)
 
-    nombre_archivo = f"Factura_{factura.numero}.pdf"
+    safe_num = str(factura.numero).replace("/", "-")
+    nombre_archivo = f"Factura_{safe_num}.pdf"
     ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
 
     # =============================
@@ -325,11 +326,7 @@ def generar_factura_pdf(
     # =============================
     qr_y = None  # ← CLAVE
 
-    if (
-        config
-        and config.verifactu_modo == "TEST"
-        and factura.verifactu_hash
-    ):
+    if config and factura.verifactu_hash:
         try:
             url_qr = construir_url_qr(
                 factura=factura,

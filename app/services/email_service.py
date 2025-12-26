@@ -7,7 +7,8 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
-
+from sqlmodel import select
+from fastapi import Request
 from sqlmodel import Session
 from app.db.session import engine
 from app.models.configuracion_sistema import ConfiguracionSistema
@@ -22,12 +23,26 @@ from app.services.smtp_service import smtp_connect
 socket.setdefaulttimeout(10)   # timeout global duro
 
 
-def _load_smtp_config():
+def _load_smtp_config(empresa_id: int | None = None):
     """
-    Carga config SMTP desde BD
+    Carga configuración SMTP multiempresa.
+    Si no se pasa empresa_id, usa la primera empresa activa con SMTP configurado.
     """
+    from app.models.empresa import Empresa
+
     with Session(engine) as db:
-        return db.get(ConfiguracionSistema, 1)
+        if empresa_id:
+            return db.exec(
+                select(ConfiguracionSistema)
+                .where(ConfiguracionSistema.empresa_id == empresa_id)
+            ).first()
+
+        # fallback: primera empresa con smtp configurado
+        return db.exec(
+            select(ConfiguracionSistema)
+            .where(ConfiguracionSistema.smtp_enabled == True)
+            .order_by(ConfiguracionSistema.empresa_id)
+        ).first()
 
 
 # =========================
@@ -106,7 +121,7 @@ Si no solicitaste este cambio, ignora este correo.
 # =========================
 # ENVÍO FACTURA
 # =========================
-def enviar_email_factura(
+def enviar_email_factura(request: Request,
     factura_id: int,
     para: str,
     asunto: str,
@@ -125,8 +140,16 @@ def enviar_email_factura(
         session.refresh(factura)
         _ = factura.lineas
 
-        config = session.get(ConfiguracionSistema, 1)
-        emisor = session.get(Emisor, 1)
+        empresa_id = request.session["empresa_id"]
+
+        config = session.exec(
+            select(ConfiguracionSistema)
+            .where(ConfiguracionSistema.empresa_id == empresa_id)
+        ).first()
+
+        emisor = session.exec(
+            select(Emisor).where(Emisor.empresa_id == empresa_id)
+        ).first()
 
     if not config:
         raise Exception("No existe configuración del sistema")

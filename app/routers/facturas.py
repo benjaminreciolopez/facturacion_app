@@ -45,7 +45,11 @@ def facturas_list(
     fecha_hasta: date | None = Query(None),
     session: Session = Depends(get_session),
 ):
-    query = select(Factura)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada")
+
+    query = select(Factura).where(Factura.empresa_id == empresa_id)
 
     if estado:
         query = query.where(Factura.estado == estado)
@@ -111,7 +115,9 @@ def facturas_list(
     # RESTO DEL CÓDIGO IGUAL
     # --------------------------------
     clientes = session.exec(
-        select(Cliente).order_by(Cliente.nombre)
+        select(Cliente)
+        .where(Cliente.empresa_id == empresa_id)
+        .order_by(Cliente.nombre)
     ).all()
 
     factura_ids = [f.id for f in facturas]
@@ -174,10 +180,19 @@ def factura_form(
     session: Session = Depends(get_session),
 ):
 
-    clientes = session.exec(select(Cliente).order_by(Cliente.nombre)).all()
+    empresa_id = request.session["empresa_id"]
+
+    clientes = session.exec(
+        select(Cliente)
+        .where(Cliente.empresa_id == empresa_id)
+        .order_by(Cliente.nombre)
+    ).all()
 
     ivas_db = session.exec(
-        select(IVA).where(IVA.activo == True).order_by(IVA.porcentaje)
+        select(IVA)
+            .where(IVA.activo == True)
+            .where(IVA.empresa_id == empresa_id)
+            .order_by(IVA.porcentaje)
     ).all()
 
     # Convertir a JSON serializable
@@ -285,9 +300,11 @@ def factura_edit(
     request: Request,
     session: Session = Depends(get_session),
 ):
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if not factura or factura.empresa_id != empresa_id:
+        raise HTTPException(404, "Factura no encontrada")
 
     lineas_db = session.exec(
         select(LineaFactura).where(LineaFactura.factura_id == factura_id)
@@ -305,12 +322,21 @@ def factura_edit(
         for l in lineas_db
     ]
 
-    clientes = session.exec(select(Cliente).order_by(Cliente.nombre)).all()
+    empresa_id = request.session["empresa_id"]
+
+    clientes = session.exec(
+        select(Cliente)
+        .where(Cliente.empresa_id == empresa_id)
+        .order_by(Cliente.nombre)
+    ).all()
 
 
     # IVA global
     ivas_db = session.exec(
-        select(IVA).where(IVA.activo == True).order_by(IVA.porcentaje)
+        select(IVA)
+            .where(IVA.activo == True)
+            .where(IVA.empresa_id == empresa_id)
+            .order_by(IVA.porcentaje)
     ).all()
 
     ivas = [
@@ -333,7 +359,7 @@ def factura_edit(
 
 @router.post("/{factura_id}/edit")
 @bloquear_si_factura_inmutable()
-def factura_edit_save(
+def factura_edit_save(request: Request,
     factura_id: int,
     cliente_id: int = Form(...),
     fecha: date | None = Form(None),
@@ -345,9 +371,11 @@ def factura_edit_save(
     if fecha is None:
         fecha = date.today()
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
-        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    if not factura or factura.empresa_id != empresa_id:
+        raise HTTPException(404, "Factura no encontrada")
 
     bloquear_edicion_factura(factura, session)
 
@@ -415,20 +443,23 @@ def factura_edit_save(
     return RedirectResponse("/facturas", status_code=303)
 
 @router.get("/{factura_id}/preview-validacion")
-def factura_preview_validacion(
+def factura_preview_validacion(request: Request,
     factura_id: int,
     fecha: date = Query(...),
     session: Session = Depends(get_session)
 ):
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
+    if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
     # Última factura validada
     ultima = session.exec(
         select(Factura)
         .where(Factura.estado == "VALIDADA")
+        .where(Factura.empresa_id == empresa_id)
         .order_by(Factura.fecha.desc())
     ).first()
 
@@ -440,7 +471,14 @@ def factura_preview_validacion(
     fecha_maxima = date.today()
 
     # Preview numeración
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
     year = fecha.year
 
     if emisor.ultimo_anio_numerado != year:
@@ -466,9 +504,12 @@ def validar_factura(
     session: Session = Depends(get_session),
     request: Request = None,
 ):
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
+    if not factura or factura.empresa_id != empresa_id:
         auditar(
+
             session,
             entidad="FACTURA",
             entidad_id=factura_id,
@@ -530,7 +571,14 @@ def validar_factura(
         raise
 
     # 2) Comprobar ruta PDF pero NO bloquear si no existe
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
     ruta_base = (emisor.ruta_pdf or "").strip()
 
     usar_ruta_servidor = False
@@ -542,6 +590,7 @@ def validar_factura(
     ultima = session.exec(
         select(Factura)
         .where(Factura.estado == "VALIDADA")
+        .where(Factura.empresa_id == empresa_id)
         .order_by(Factura.fecha.desc())
     ).first()
 
@@ -606,7 +655,13 @@ def validar_factura(
         )
         raise
 
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session["empresa_id"]
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     # 7) Validar factura definitivamente
     factura.estado = "VALIDADA"
@@ -688,10 +743,15 @@ def validar_factura(
     }
 
 @router.get("/min-date")
-def factura_min_date(session: Session = Depends(get_session)):
-    # última factura VALIDADA
+def factura_min_date(request: Request, session: Session = Depends(get_session)):
+
+    empresa_id = request.session["empresa_id"]
+
     f = session.exec(
-        select(Factura).where(Factura.estado == "VALIDADA").order_by(Factura.fecha.desc())
+        select(Factura)
+            .where(Factura.estado == "VALIDADA")
+            .where(Factura.empresa_id == empresa_id)
+            .order_by(Factura.fecha.desc())
     ).first()
 
     if not f:
@@ -704,7 +764,7 @@ def factura_min_date(session: Session = Depends(get_session)):
     return {"min_date": min_date}
 
 @router.get("/next-number")
-def factura_next_number(
+def factura_next_number(request: Request,
     fecha: date = Query(default=None),
     session: Session = Depends(get_session),
 ):
@@ -713,7 +773,11 @@ def factura_next_number(
 
     year = fecha.year
 
-    emisor = session.exec(select(Emisor)).first()
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
     if not emisor:
         raise HTTPException(
             status_code=400,
@@ -726,6 +790,7 @@ def factura_next_number(
     ultima = session.exec(
         select(Factura)
         .where(Factura.estado == "VALIDADA")
+        .where(Factura.empresa_id == emisor.empresa_id)
         .where(Factura.numero.like(f"%{year}-%"))
         .order_by(Factura.numero.desc())
     ).first()
@@ -764,8 +829,10 @@ def factura_next_number(
 @router.get("/{factura_id}/generar-pdf", response_class=HTMLResponse)
 def factura_generar_pdf(factura_id: int, request: Request, session: Session = Depends(get_session)):
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
+    if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
     lineas = session.exec(
@@ -773,7 +840,14 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     ).all()
 
     # 1) Verificar ruta del emisor
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
     ruta_base = (emisor.ruta_pdf or "").strip()
 
     if not ruta_base:
@@ -808,7 +882,13 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
                 "solucion": "Otorga permisos o selecciona otra carpeta."
             }
         )
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session["empresa_id"]
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
 
     # ============================
@@ -845,13 +925,15 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()
-def factura_delete(
+def factura_delete(request: Request,
     factura_id: int,
     session: Session = Depends(get_session)
 ):
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
+    if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
     # Si usas lógica de negocio adicional
@@ -875,6 +957,7 @@ def factura_delete(
     session.commit()
 
     return RedirectResponse("/facturas", status_code=303)
+
 @router.post("/{factura_id}/anular")
 def factura_anular(
     factura_id: int,
@@ -882,7 +965,11 @@ def factura_anular(
     session: Session = Depends(get_session)
 ):
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
+    if not factura or factura.empresa_id != empresa_id:
+        raise HTTPException(404, "Factura no encontrada")
     if not factura:
         auditar(
             session,
@@ -915,7 +1002,14 @@ def factura_anular(
     # 1) Verificar ruta PDFs
     # ============================
     # Ruta y textos del emisor
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
     ruta_base = (emisor.ruta_pdf or "").strip()
 
     
@@ -940,9 +1034,12 @@ def factura_anular(
     # 2. Verificar si ya existe rectificativa
     # ============================
     numero_rect = f"{factura.numero}R"
+    
 
     existe = session.exec(
-        select(Factura).where(Factura.numero == numero_rect)
+        select(Factura)
+            .where(Factura.numero == numero_rect)
+            .where(Factura.empresa_id == empresa_id)
     ).first()
 
     if existe:
@@ -1002,7 +1099,13 @@ def factura_anular(
 
     session.commit()
 
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session["empresa_id"]
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     # ============================
     # 5) GENERAR PDF
@@ -1044,7 +1147,11 @@ def factura_rectificar(
     session: Session = Depends(get_session)
 ):
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
+    if not factura or factura.empresa_id != empresa_id:
+        raise HTTPException(404, "Factura no encontrada")
     if not factura:
         auditar(
             session,
@@ -1077,7 +1184,14 @@ def factura_rectificar(
     # Ruta y textos del emisor
     # ============================
     # 2) Comprobar ruta PDF pero NO bloquear si no existe
-    emisor = session.get(Emisor, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
     ruta_base = (emisor.ruta_pdf or "").strip()
 
     usar_ruta_servidor = False
@@ -1148,7 +1262,13 @@ def factura_rectificar(
     rect.iva_total = round(iva_total, 2)
     rect.total = round(subtotal + iva_total, 2)
     session.commit()
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session["empresa_id"]
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     # PDF
     pdf_file_path = None
@@ -1184,17 +1304,26 @@ def factura_rectificar(
     return {"ok": True, "rectificativa_id": rect.id, "numero": rect.numero}
 
 @router.post("/{factura_id}/prevalidar")
-def factura_pre_validar(
+def factura_pre_validar(request: Request,
     factura_id: int,
     fecha: date = Form(...),
     session: Session = Depends(get_session)
 ):
 
-    factura = session.get(Factura, factura_id)
-    if not factura:
-        return {"ok": False, "error": "Factura no encontrada"}
+    empresa_id = request.session["empresa_id"]
 
-    emisor = session.get(Emisor, 1)
+    factura = session.get(Factura, factura_id)
+    if not factura or factura.empresa_id != empresa_id:
+        raise HTTPException(404, "Factura no encontrada")
+    
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
 
     iva = factura.iva_global or 0
 
@@ -1220,15 +1349,17 @@ def factura_pre_validar(
 
 
 @router.post("/{factura_id}/email")
-async def enviar_factura_email(
+async def enviar_factura_email(request: Request,
     factura_id: int,
     data: dict = Body(...),
     session: Session = Depends(get_session)
 ):
     from app.services.email_service import run_async, enviar_email_factura_construido
 
+    empresa_id = request.session["empresa_id"]
+
     factura = session.get(Factura, factura_id)
-    if not factura:
+    if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
     para = (data.get("para") or "").strip()
@@ -1267,8 +1398,22 @@ async def enviar_factura_email(
     # =========================
     # PREPARAR TODO ANTES DEL HILO
     # =========================
-    emisor = session.get(Emisor, 1)
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session["empresa_id"]
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
+    
+    empresa_id = request.session["empresa_id"]
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     if not emisor:
         raise HTTPException(400, "No hay configuración de emisor")

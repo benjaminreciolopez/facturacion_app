@@ -2,7 +2,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from starlette.requests import Request
 from datetime import datetime, timedelta
-
+from sqlmodel import select
 from app.db.session import Session, engine
 from app.models.emisor import Emisor
 from app.models.user import User
@@ -81,14 +81,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
         empresa_id = real_user.empresa_id or 1
         session["empresa_id"] = empresa_id
         logger.debug(f"EMPRESA ACTIVA SESIÓN: {empresa_id}")
+       
+        if not real_user.empresa_id:
+            logger.error("Usuario sin empresa asignada. Bloqueando acceso.")
+            session.clear()
+            return RedirectResponse("/login", status_code=303)
+
         # ---------------------------------------------------
         # CARGAR EMISOR
         # ---------------------------------------------------
         with Session(engine) as db:
-            emisor = db.get(Emisor, 1)
+            emisor = db.exec(
+                select(Emisor).where(Emisor.empresa_id == empresa_id)
+            ).first()
 
         if not emisor:
-            logger.info("No existe emisor. Continuando sin seguridad.")
+            logger.warning("Empresa sin emisor configurado. Seguridad PIN NO disponible.")
             return await call_next(request)
 
         logger.debug(f"PIN: {emisor.seguridad_pin}")

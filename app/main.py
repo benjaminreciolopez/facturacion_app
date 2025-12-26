@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from pathlib import Path
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.core.templates import templates
 from fastapi.responses import FileResponse
 
@@ -64,21 +64,17 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-session-key")
 # ============================================================
 # MIDDLEWARE → ORDEN CORRECTO
 # ============================================================
-# 1️⃣ Primero Auth
-app.add_middleware(AuthMiddleware)
-
-# 2️⃣ Luego First Run
-app.add_middleware(FirstRunMiddleware)
-
-# 3️⃣ Último SIEMPRE la sesión
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
     same_site="lax",
     https_only=False,
-    max_age=3600,     # 1 hora
+    max_age=3600,
 )
+
+app.add_middleware(FirstRunMiddleware)
+app.add_middleware(AuthMiddleware)
 
 # ============================================================
 # PDF + STATIC
@@ -88,7 +84,6 @@ PDF_ROOT = BASE_DIR / "facturas_pdf"
 PDF_ROOT.mkdir(exist_ok=True)
 
 app.mount("/pdf", StaticFiles(directory=PDF_ROOT), name="pdf")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 # ============================================================
@@ -106,32 +101,51 @@ def on_startup():
     init_db()
 
     with Session(engine) as session:
-
-        empresa = session.get(Empresa, 1)
+        # =========================
+        # EMPRESA BASE solo si no existe ninguna
+        # =========================
+        empresa = session.exec(select(Empresa)).first()
         if not empresa:
             empresa = Empresa(
-                id=1,
                 nombre="Empresa Principal",
                 cif="N/A",
                 activa=True
             )
             session.add(empresa)
+            session.flush()  # para obtener empresa.id
 
-        emisor = session.get(Emisor, 1)
+        empresa_id = empresa.id
+
+        # =========================
+        # EMISOR LIGADO A EMPRESA
+        # =========================
+        emisor = session.exec(
+            select(Emisor).where(Emisor.empresa_id == empresa_id)
+        ).first()
+
         if not emisor:
-            emisor = Emisor(id=1, empresa_id=1)
+            emisor = Emisor(
+                empresa_id=empresa_id
+            )
             session.add(emisor)
-        else:
-            if emisor.empresa_id is None:
-                emisor.empresa_id = 1
 
-        config = session.get(ConfiguracionSistema, 1)
+        # =========================
+        # CONFIG POR EMPRESA
+        # =========================
+        config = session.exec(
+            select(ConfiguracionSistema).where(
+                ConfiguracionSistema.empresa_id == empresa_id
+            )
+        ).first()
+
         if not config:
-            config = ConfiguracionSistema(id=1)
+            config = ConfiguracionSistema(empresa_id=empresa_id)
             session.add(config)
 
-        print(">>> Sistema listo. Se gestionará usuario inicial vía /setup")
         session.commit()
+
+    print(">>> Sistema listo")
+
 @app.get("/")
 async def root():
     return RedirectResponse("/dashboard")
@@ -148,19 +162,32 @@ from app.core.auth_utils import get_user_safe
 templates.env.globals["get_user"] = get_user_safe
 
 
-def get_emisor_logo():
+from jinja2 import contextfunction
+
+@contextfunction
+def get_emisor_logo(context):
     try:
+        request = context.get("request")
+        if not request:
+            return None
+
+        empresa_id = request.session.get("empresa_id")
+        if not empresa_id:
+            return None
+
         with Session(engine) as db:
-            emisor = db.get(Emisor, 1)
+            emisor = db.exec(
+                select(Emisor).where(Emisor.empresa_id == empresa_id)
+            ).first()
+
             if emisor and emisor.logo_path:
-                # aseguramos ruta correcta
                 return f"/static/{emisor.logo_path.lstrip('/')}"
+
         return None
     except:
         return None
 
-
-templates.env.globals["emisor_logo"] = get_emisor_logo
+templates.env.globals["get_emisor_logo"] = get_emisor_logo
 
 
 @app.get("/sw.js", include_in_schema=False)

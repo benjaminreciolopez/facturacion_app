@@ -74,16 +74,20 @@ def setup_create(
     # =========================
     # CONFIG SISTEMA BÁSICA
     # =========================
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = empresa.id
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     if not config:
-        config = ConfiguracionSistema(id=1)
+        config = ConfiguracionSistema(
+            empresa_id=empresa_id,
+            actualizado_en=datetime.utcnow()
+        )
         session.add(config)
 
-    # Si hay PIN, solo afecta al usuario (ya lo guardamos arriba),
-    # no a la configuración global
-    config.actualizado_en = datetime.utcnow()
-
-    session.add(config)
     session.commit()
     return RedirectResponse("/login", status_code=302)

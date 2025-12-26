@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import smtplib
-from sqlmodel import Session
+from sqlmodel import Session, select
 from datetime import datetime
 
 from app.db.session import get_session
@@ -21,7 +21,15 @@ def ver_configuracion_sistema(
     request: Request,
     session: Session = Depends(get_session),
 ):
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     if not config:
         raise HTTPException(
@@ -65,7 +73,15 @@ def guardar_configuracion_sistema(
     smtp_tls: Optional[str] = Form(None),
     smtp_ssl: Optional[str] = Form(None),
 ):
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     if not config:
         raise HTTPException(
@@ -242,7 +258,8 @@ def translate_smtp_error(e: Exception | str):
 
 
 @router.post("/sistema/test-smtp")
-def test_smtp_manual(
+def test_smtp_manual(request: Request,
+
     session: Session = Depends(get_session),
 
     smtp_host: str | None = Form(None),
@@ -252,7 +269,15 @@ def test_smtp_manual(
     smtp_tls: str | None = Form(None),
     smtp_ssl: str | None = Form(None),
 ):
-    config = session.get(ConfiguracionSistema, 1)
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     # Prioridad: formulario > BD > default
     host = smtp_host if smtp_host not in (None, "") else config.smtp_host

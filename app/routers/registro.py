@@ -32,6 +32,22 @@ def registro_submit(
     password: str = Form(...),
     session: Session = Depends(get_session),
 ):
+    
+    # =============================
+    # VALIDAR NOMBRE EMPRESA
+    # ============================
+
+    existe_nombre = session.exec(
+        select(Empresa).where(Empresa.nombre == nombre_empresa.strip())
+    ).first()
+
+    if existe_nombre:
+        return templates.TemplateResponse(
+            "registro.html",
+            {"request": request, "error": "Ya existe una empresa con ese nombre"},
+            status_code=400,
+        )
+
     # =============================
     # VALIDAR EMAIL
     # =============================
@@ -90,11 +106,20 @@ def registro_submit(
     session.add(user)
 
     # =============================
-    # CONFIG SISTEMA
+    # CONFIG SISTEMA BÁSICA
     # =============================
-    config = ConfiguracionSistema(id=empresa.id)
-    config.actualizado_en = datetime.utcnow()
-    session.add(config)
+    config_existing = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa.id
+        )
+    ).first()
+
+    if not config_existing:
+        config = ConfiguracionSistema(
+            empresa_id=empresa.id,
+            actualizado_en=datetime.utcnow(),
+        )
+        session.add(config)
 
     # =============================
     # CREAR EMISOR BASE

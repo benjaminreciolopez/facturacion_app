@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, HTTPException
 from sqlmodel import Session, select
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, or_
 from datetime import date, timedelta, datetime
 import os
 from app.db.session import get_session
@@ -11,7 +11,6 @@ from app.models.emisor import Emisor
 from app.models.iva import IVA
 from app.models.configuracion_sistema import ConfiguracionSistema
 from app.core.templates import templates
-from sqlalchemy import or_
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -24,6 +23,11 @@ def dashboard(
     year: str | None = Query(None),
 ):
     hoy = date.today()
+
+    empresa_id = request.session.get("empresa_id")
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
 
     # =========================
     # NORMALIZAR FILTROS
@@ -38,21 +42,20 @@ def dashboard(
     # FILTROS BASE
     # =========================
     if estado:
-        # Si el usuario filtra manualmente → respetamos el filtro
         filtros = [
             Factura.estado == estado,
-            extract("year", Factura.fecha) == year
+            extract("year", Factura.fecha) == year,
+            Factura.empresa_id == empresa_id
         ]
     else:
-        # Modo dashboard → actividad emitida
-
         filtros = [
             extract("year", Factura.fecha) == year,
             or_(
                 Factura.estado == "VALIDADA",
                 Factura.estado == "ANULADA"
             ),
-            Factura.rectificativa == False   # o 0 según tu modelo
+            Factura.rectificativa == False,
+            Factura.empresa_id == empresa_id
         ]
 
     if cliente_id:
@@ -85,20 +88,21 @@ def dashboard(
             Factura.estado == "VALIDADA",
             Factura.estado == "ANULADA"
         ),
-        Factura.rectificativa == False
+        Factura.rectificativa == False,
+        Factura.empresa_id == empresa_id
     ]
 
     if cliente_id:
         filtros_kpi.append(Factura.cliente_id == cliente_id)
-
+        
     total_anual = session.exec(
-        select(func.coalesce(func.sum(Factura.total), 0))
-        .where(*filtros)
+    select(func.coalesce(func.sum(Factura.total), 0))
+        .where(*filtros_kpi)
     ).one()
 
     facturas_total = session.exec(
         select(func.count(Factura.id))
-        .where(*filtros_kpi)
+            .where(*filtros_kpi)
     ).one()
 
 
@@ -113,7 +117,8 @@ def dashboard(
                 Factura.estado == "VALIDADA",
                 Factura.estado == "ANULADA"
             ),
-            Factura.rectificativa == False
+            Factura.rectificativa == False,
+            Factura.empresa_id == empresa_id
         )
     ).one()
 
@@ -122,12 +127,14 @@ def dashboard(
     # ALERTAS AVANZADAS DASHBOARD
     # =========================
     alertas: list[dict] = []
-    emisor = session.get(Emisor, 1)
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
 
 
     hoy = date.today()
     year_actual = hoy.year
-    year_anterior = year_actual - 1
+    prev_year_actual = year_actual - 1
 
     # -------------------------------------------------
     # 1️⃣ ALERTAS CON ACCIÓN (CONFIGURACIÓN)
@@ -144,14 +151,16 @@ def dashboard(
     # -------------------------------------------------
     total_actual = session.exec(
         select(func.coalesce(func.sum(Factura.total), 0))
-        .where(Factura.estado == "VALIDADA")
-        .where(extract("year", Factura.fecha) == year_actual)
+            .where(Factura.estado == "VALIDADA")
+            .where(extract("year", Factura.fecha) == year_actual)
+            .where(Factura.empresa_id == empresa_id)
     ).one()
 
     total_anterior = session.exec(
         select(func.coalesce(func.sum(Factura.total), 0))
-        .where(Factura.estado == "VALIDADA")
-        .where(extract("year", Factura.fecha) == year_anterior)
+            .where(Factura.estado == "VALIDADA")
+            .where(extract("year", Factura.fecha) == prev_year_actual)
+            .where(Factura.empresa_id == empresa_id)
     ).one()
 
     variacion = None
@@ -176,8 +185,10 @@ def dashboard(
     # 3️⃣ IVA NO CONFIGURADO
     # -------------------------------------------------
     ivas_activos = session.exec(
-        select(func.count(IVA.id))
-        .where(IVA.activo == True)
+        select(func.count(IVA.id)).where(
+            IVA.activo == True,
+            IVA.empresa_id == empresa_id
+        )
     ).one()
 
     if ivas_activos == 0:
@@ -198,8 +209,9 @@ def dashboard(
 
     borradores_antiguos = session.exec(
         select(func.count(Factura.id))
-        .where(Factura.estado == "BORRADOR")
-        .where(Factura.fecha < limite_borrador)
+            .where(Factura.estado == "BORRADOR")
+            .where(Factura.fecha < limite_borrador)
+            .where(Factura.empresa_id == empresa_id)
     ).one()
 
     if borradores_antiguos > 0:
@@ -221,7 +233,8 @@ def dashboard(
     # -------------------------------------------------
     pendientes_validar = session.exec(
         select(func.count(Factura.id))
-        .where(Factura.estado == "BORRADOR")
+            .where(Factura.estado == "BORRADOR")
+            .where(Factura.empresa_id == empresa_id)
     ).one()
 
     if pendientes_validar > 0:
@@ -341,7 +354,12 @@ def dashboard(
     # VERI*FACTU CONFIGURACIÓN
     # -------------------------------------------------
 
-    config = session.get(ConfiguracionSistema, 1)
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
 
     if config.verifactu_modo in ("TEST", "PRODUCCION") and not config.cert_aeat_path:
         alertas.append({
@@ -360,8 +378,9 @@ def dashboard(
 
     facturas_ano = session.exec(
         select(func.count(Factura.id))
-        .where(Factura.estado == "VALIDADA")
-        .where(extract("year", Factura.fecha) == year_actual)
+            .where(Factura.estado == "VALIDADA")
+            .where(extract("year", Factura.fecha) == year_actual)
+            .where(Factura.empresa_id == empresa_id)
     ).one() or 0
 
     if facturas_ano == 0:
@@ -380,9 +399,10 @@ def dashboard(
 
     facturas_mes = session.exec(
         select(func.count(Factura.id))
-        .where(Factura.estado == "VALIDADA")
-        .where(extract("year", Factura.fecha) == year_actual)
-        .where(extract("month", Factura.fecha) == mes_actual)
+            .where(Factura.estado == "VALIDADA")
+            .where(extract("year", Factura.fecha) == year_actual)
+            .where(extract("month", Factura.fecha) == mes_actual)
+            .where(Factura.empresa_id == empresa_id)
     ).one() or 0
 
     if facturas_mes == 0:
@@ -398,6 +418,7 @@ def dashboard(
     # -------------------------------------------------
     clientes_total = session.exec(
         select(func.count(Cliente.id))
+        .where(Cliente.empresa_id == empresa_id)
     ).one() or 0
 
     if clientes_total == 0:
@@ -413,7 +434,9 @@ def dashboard(
     # DATOS PARA FILTROS
     # =========================
     clientes = session.exec(
-        select(Cliente).order_by(Cliente.nombre)
+        select(Cliente)
+        .where(Cliente.empresa_id == empresa_id)
+        .order_by(Cliente.nombre)
     ).all()
 
     estados_disponibles = ["VALIDADA", "BORRADOR", "ANULADA"]
@@ -430,7 +453,7 @@ def dashboard(
             "meses": meses,
             "totales": totales,
             "comparativa": {
-                "actual": total_anual,
+                "actual": total_actual,
                 "anterior": anterior
             },
             "alertas": alertas,
@@ -438,6 +461,7 @@ def dashboard(
             "cliente_id": cliente_id,
             "estado": estado,
             "year": year,
+            "prev_year": prev_year_actual,
             "estados_disponibles": estados_disponibles,
             "sin_datos": len(meses) == 0
         }

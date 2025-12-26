@@ -1,6 +1,7 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from sqlmodel import Session, select
 from datetime import datetime
+import json
 from hashlib import sha256
 
 from app.models.configuracion_sistema import ConfiguracionSistema
@@ -10,16 +11,21 @@ from app.services.verifactu_envio import enviar_a_aeat
 
 
 # ============================================================
-# UTILIDAD
+# CONFIG
 # ============================================================
 
-def get_config(session: Session) -> ConfiguracionSistema:
-    config = session.get(ConfiguracionSistema, 1)
+def get_config(session: Session, *, empresa_id: int) -> ConfiguracionSistema:
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
+
     if not config:
         raise HTTPException(
-            status_code=500,
-            detail="Configuración del sistema no inicializada."
+            500, "Configuración del sistema no inicializada."
         )
+
     return config
 
 
@@ -29,8 +35,13 @@ def get_config(session: Session) -> ConfiguracionSistema:
 
 def verificar_verifactu(factura: Factura, session: Session):
 
-    config = get_config(session)
+    empresa_id = factura.empresa_id
+    if not empresa_id:
+        raise HTTPException(400, "Factura sin empresa asociada")
 
+    config = get_config(session, empresa_id=empresa_id)
+
+    # Si VeriFactu no está activo → salimos
     if not config.verifactu_activo or config.verifactu_modo == "OFF":
         return
 
@@ -46,15 +57,17 @@ def verificar_verifactu(factura: Factura, session: Session):
     if factura.total is None:
         raise HTTPException(400, "La factura no tiene total.")
 
-    emisor = session.get(Emisor, 1)
+    # Emisor de la empresa
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor or not emisor.nif:
-        raise HTTPException(
-            500,
-            "No hay NIF de emisor configurado."
-        )
+        raise HTTPException(500, "No hay NIF de emisor configurado.")
 
     fecha_generacion = datetime.utcnow()
-    hash_anterior = obtener_hash_anterior(session)
+
+    hash_anterior = obtener_hash_anterior(session, empresa_id)
 
     nuevo_hash = generar_hash_verifactu(
         factura=factura,
@@ -72,10 +85,12 @@ def verificar_verifactu(factura: Factura, session: Session):
         hash_anterior=hash_anterior,
         fecha_registro=fecha_generacion,
         estado_envio="PENDIENTE",
+        empresa_id=empresa_id,
     )
 
     session.add(registro)
 
+    # Envío real / mock
     enviar_a_aeat(
         factura=factura,
         emisor=emisor,
@@ -96,11 +111,8 @@ def verificar_verifactu(factura: Factura, session: Session):
 
 
 # ============================================================
-# HASH VERI*FACTU
+# HASH
 # ============================================================
-
-import json
-from hashlib import sha256
 
 def generar_hash_verifactu(
     factura: Factura,
@@ -108,10 +120,6 @@ def generar_hash_verifactu(
     fecha_generacion: datetime,
     hash_anterior: str | None,
 ) -> str:
-    """
-    Hash encadenado VeriFactu basado en contenido completo.
-    El hash depende de la factura REAL, no solo de 4 campos.
-    """
 
     if not factura.numero:
         raise ValueError("No se puede generar hash sin número definitivo.")
@@ -119,9 +127,6 @@ def generar_hash_verifactu(
     if not factura.fecha:
         raise ValueError("No se puede generar hash sin fecha.")
 
-    # -------------------------
-    # Construimos estructura estable
-    # -------------------------
     payload_hash = {
         "emisor": {
             "nif": nif_emisor.strip().upper(),
@@ -137,20 +142,6 @@ def generar_hash_verifactu(
         },
     }
 
-    # Si tienes desglose de IVA, inclúyelo aquí
-    if hasattr(factura, "detalle_iva") and factura.detalle_iva:
-        payload_hash["factura"]["iva"] = [
-            {
-                "tipo": float(li.tipo_iva),
-                "base": float(li.base),
-                "cuota": float(li.cuota),
-            }
-            for li in factura.detalle_iva
-        ]
-
-    # -------------------------
-    # JSON CANÓNICO
-    # -------------------------
     canonico = json.dumps(
         payload_hash,
         ensure_ascii=False,
@@ -160,27 +151,16 @@ def generar_hash_verifactu(
 
     return sha256(canonico).hexdigest()
 
+
 # ============================================================
-# REGISTRO SIMULADO
+# HASH CADENA
 # ============================================================
 
-def registrar_envio_simulado(config: ConfiguracionSistema, hash_envio: str):
-    """
-    Placeholder de envío Veri*Factu.
-    Sirve para TEST y como base de auditoría.
-    """
-    # Aquí en el futuro:
-    # - guardar log
-    # - guardar payload enviado
-    # - guardar respuesta AEAT
-    pass
-
-
-def obtener_hash_anterior(session: Session) -> str | None:
+def obtener_hash_anterior(session: Session, empresa_id: int) -> str | None:
     ultimo = session.exec(
         select(RegistroVerifactu)
+        .where(RegistroVerifactu.empresa_id == empresa_id)
         .order_by(RegistroVerifactu.fecha_registro.desc())
     ).first()
 
     return ultimo.hash_actual if ultimo else None
-
