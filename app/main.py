@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 from app.core.templates import templates
 from fastapi.responses import FileResponse
-
+from jinja2 import pass_context
 from app.db.session import engine
 from app.db.base import init_db
 
@@ -162,9 +162,8 @@ from app.core.auth_utils import get_user_safe
 templates.env.globals["get_user"] = get_user_safe
 
 
-from jinja2 import contextfunction
 
-@contextfunction
+@pass_context
 def get_emisor_logo(context):
     try:
         request = context.get("request")
