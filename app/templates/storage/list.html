@@ -1,10 +1,20 @@
 {% extends "base.html" %} {% block content %}
 
-<h2>Almacenamiento del servidor</h2>
+<h2 class="mb-1">Almacenamiento del servidor</h2>
+<p class="text-muted">Ubicación actual: {{ path }}</p>
 
-<p class="text-muted">Ubicación: <strong>/data</strong></p>
+<!-- BREADCRUMB -->
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    {% for b in breadcrumb %}
+    <li class="breadcrumb-item">
+      <a href="/storage/ui?path={{ b.ruta }}">{{ b.nombre }}</a>
+    </li>
+    {% endfor %}
+  </ol>
+</nav>
 
-<table class="table table-hover">
+<table class="table table-hover align-middle">
   <thead>
     <tr>
       <th>Nombre</th>
@@ -14,9 +24,54 @@
     </tr>
   </thead>
 
-  <tbody id="storageTable"></tbody>
-</table>
+  <tbody>
+    {% for f in elementos %}
+    <tr
+      class="fila-explorer"
+      data-path="{{ f.ruta }}"
+      data-isdir="{{ '1' if f.es_dir else '0' }}"
+    >
+      <td>
+        {% if f.es_dir %}
+        <i class="bi bi-folder-fill text-warning me-2"></i>
+        {% else %}
+        <i class="bi bi-file-earmark-text text-secondary me-2"></i>
+        {% endif %} {{ f.nombre }}
+      </td>
 
+      <td>{{ f.tipo }}</td>
+
+      <td>
+        {% if f.tamano %} {{ "%.1f"|format(f.tamano / 1024) }} KB {% else %} -
+        {% endif %}
+      </td>
+
+      <td class="text-end">
+        {% if not f.es_dir %}
+        <a
+          href="/storage/view?path={{ f.ruta }}"
+          class="btn btn-sm btn-outline-primary"
+          target="_blank"
+          >Ver</a
+        >
+        <a
+          href="/storage/download?path={{ f.ruta }}"
+          class="btn btn-sm btn-success"
+          >Descargar</a
+        >
+        {% endif %}
+
+        <button
+          class="btn btn-sm btn-danger ms-1 btn-delete"
+          data-path="{{ f.ruta }}"
+        >
+          Eliminar
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 <script>
   async function cargarStorage() {
     const res = await fetch("/storage", { credentials: "include" });
@@ -74,6 +129,18 @@
   }
 
   document.addEventListener("DOMContentLoaded", cargarStorage);
+</script>
+<script>
+  document.querySelectorAll(".fila-explorer").forEach((row) => {
+    row.addEventListener("dblclick", () => {
+      const isDir = row.dataset.isdir === "1";
+      const path = row.dataset.path;
+
+      if (isDir) {
+        window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
+      }
+    });
+  });
 </script>
 
 {% endblock %}

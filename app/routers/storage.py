@@ -1,11 +1,8 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from pathlib import Path
 import os
 import shutil
-
-from app.utils.session_empresa import get_empresa_id
-from app.db.session import get_session
 from app.core.templates import templates
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
@@ -82,9 +79,54 @@ def storage_delete(request: Request, path: str):
 
 
 @router.get("/ui", response_class=HTMLResponse)
-def storage_page(request: Request):
-    require_admin(request)
+def storage_explorer(
+    request: Request,
+    path: str = Query("/data"),
+):
+    base = "/data"
+
+    # Seguridad: impedir salir de /data
+    path = os.path.normpath(path)
+    if not path.startswith(base):
+        path = base
+
+    if not os.path.exists(path):
+        raise HTTPException(404, "Ruta no encontrada")
+
+    elementos = []
+
+    for nombre in os.listdir(path):
+        ruta = os.path.join(path, nombre)
+        es_dir = os.path.isdir(ruta)
+
+        elementos.append({
+            "nombre": nombre,
+            "ruta": ruta.replace("\\", "/"),
+            "tipo": "Carpeta" if es_dir else "Archivo",
+            "tamano": None if es_dir else os.path.getsize(ruta),
+            "es_dir": es_dir,
+        })
+
+    # Breadcrumb
+    partes = path.split("/")
+    breadcrumb = []
+    acumulado = ""
+
+    for p in partes:
+        if not p:
+            continue
+        acumulado += "/" + p
+        breadcrumb.append({
+            "nombre": p,
+            "ruta": acumulado
+        })
+
     return templates.TemplateResponse(
-        "storage/list.html",
-        {"request": request}
+        "storage/ui.html",
+        {
+            "request": request,
+            "path": path,
+            "elementos": elementos,
+            "breadcrumb": breadcrumb
+        }
     )
