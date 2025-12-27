@@ -79,6 +79,9 @@
           <a href="/facturas" class="nav-link">Facturas</a>
           <a href="/informes" class="nav-link">Informes y Exportación</a>
           <a href="/auditoria" class="nav-link">Auditoría</a>
+          {% if u and u.rol == "admin" %}
+          <a href="/storage/ui" class="nav-link">Almacenamiento</a>
+          {% endif %}
           <div class="relative mt-4 select-none" id="configMenu">
             <div
               id="configBtn"

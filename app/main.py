@@ -40,6 +40,7 @@ from app.routers.offline import router as offline_router
 from app.routers import registro
 from app.routers import usuarios
 from app.routers import debug
+from app.routers.storage import router as storage_router
 
 router = APIRouter()
 
@@ -53,6 +54,7 @@ from app.middleware.first_run import FirstRunMiddleware
 import os
 
 
+
 # ============================================================
 # APP
 # ============================================================
@@ -62,6 +64,14 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-session-key")
 
 
+DATA_DIR = Path("/data")
+
+if DATA_DIR.exists():
+    app.mount(
+        "/data",
+        StaticFiles(directory=str(DATA_DIR)),
+        name="data_files"
+    )
 # ============================================================
 # MIDDLEWARE → ORDEN CORRECTO REAL
 # ============================================================
@@ -243,3 +253,4 @@ app.include_router(offline_router)
 app.include_router(registro.router)
 app.include_router(usuarios.router)
 app.include_router(debug.router)
+app.include_router(storage_router)
