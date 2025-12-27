@@ -320,56 +320,79 @@
 <!-- ===================================================== -->
 <!-- TAB 5: PDF -->
 <!-- ===================================================== -->
-<div id="tab-pdf" class="tab-content">
-  <h3 class="mb-3">Guardado de PDF</h3>
+<div class="p-3 mb-3 border rounded bg-white shadow-sm" id="tab-pdf">
+  <h4 class="mb-2">Carpeta raíz de facturas</h4>
 
-  <div class="alert alert-info mb-3">
-    <strong>Importante:</strong>
-    Los PDF se guardarán en el almacenamiento interno de la aplicación.
-    Usted solo debe indicar el nombre de la carpeta raíz.
-  </div>
+  <p class="text-muted mb-2">
+    Las facturas se guardarán automáticamente en el almacenamiento interno
+    del sistema. Solo debe indicar el <strong>nombre de la carpeta raíz</strong>.
+  </p>
 
-  <div class="p-3 mb-3 border rounded bg-white shadow-sm">
-    <h4 class="mb-2">Carpeta raíz de facturas</h4>
+  <p class="mb-1 fw-bold">Estructura de guardado:</p>
 
-    <p class="text-muted">
-      El sistema guardará automáticamente las facturas en:
-      <br>
-      <code>/data/&lt;carpeta&gt;/AÑO/T&lt;Trimestre&gt;/Factura_XXXX.pdf</code>
-      <br><br>
-      Ejemplo:
-      <code>/data/FACTURAS_EMPRESA/2025/T4/Factura_FRA-2025-0001.pdf</code>
-    </p>
+  <code
+    id="rutaPreview"
+    data-year="{{ current_year }}"
+    data-quarter="{{ current_quarter }}"
+    class="d-block p-2 bg-light border rounded"
+  >
+    /data/{{ emisor.ruta_facturas or "FACTURAS" }}/{{ current_year }}/T{{ current_quarter }}/Factura_XXXX.pdf
+  </code>
 
-    <form method="post" action="/configuracion/emisor/ruta-pdf">
-      <div class="mb-3">
-        <label class="form-label fw-bold">Nombre de la carpeta</label>
+  <small class="text-muted">
+    Esta ruta se actualizará automáticamente mientras escribe.
+  </small>
 
-        <input
-          type="text"
-          name="ruta_pdf"
-          class="form-control"
-          placeholder="Ejemplo: FACTURAS_EMPRESA"
-          value="{{ emisor.ruta_facturas or '' }}"
-          required
-        >
+  <form method="post" action="/configuracion/emisor/ruta-pdf" class="mt-3">
+    <div class="mb-3">
+      <label class="form-label fw-bold">Nombre de la carpeta</label>
 
-        <div class="form-text">
-          Solo letras, números, espacios, guiones y guión bajo.
-          No introduzca rutas tipo C:\ ni /home ni /Users.
-        </div>
+      <input
+        type="text"
+        name="ruta_pdf"
+        id="inputCarpeta"
+        class="form-control"
+        placeholder="Ejemplo: FACTURAS_EMPRESA"
+        value="{{ emisor.ruta_facturas or '' }}"
+        required
+      >
+
+      <div class="form-text">
+        Solo letras, números, espacios, guiones y guion bajo.
       </div>
+    </div>
 
-      <button class="btn btn-primary">
-        Guardar configuración
-      </button>
-    </form>
-  </div>
+    <button class="btn btn-primary">
+      Guardar configuración
+    </button>
+  </form>
 </div>
 
 <script>
-  // Tab 100% estático ahora. No necesitamos File System Access.
-  console.log("Tab PDF configurado con carpeta lógica en /data");
+document.addEventListener("DOMContentLoaded", () => {
+
+  const input = document.getElementById("inputCarpeta");
+  const preview = document.getElementById("rutaPreview");
+
+  if (!input || !preview) return;
+
+  const year = preview.dataset.year;
+  const quarter = preview.dataset.quarter;
+
+  function actualizarPreview() {
+    let carpeta = (input.value || "FACTURAS").trim();
+
+    // limpieza básica igual que backend
+    carpeta = carpeta.replace(/[^\w\s\-]/g, "").replace(/\s+/g, "_");
+
+    preview.textContent =
+      `/data/${carpeta}/${year}/T${quarter}/Factura_XXXX.pdf`;
+  }
+
+  input.addEventListener("input", actualizarPreview);
+
+  actualizarPreview();
+});
 </script>
 
     <!-- ===================================================== -->
@@ -492,6 +515,7 @@
 
       {% endif %}
     </div>
+    
     <style>
       .preview-box {
         padding: 10px 15px;
@@ -826,6 +850,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         actualizarPreview();
       });
     </script>
+
 
     {% endblock %}
   </form>

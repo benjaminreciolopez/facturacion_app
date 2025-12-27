@@ -335,28 +335,34 @@ def dashboard(
         )
 
     # -------------------------------------------------
-    # RUTA DE PDFs
+    # RUTA PDF (NUEVO SISTEMA)
     # -------------------------------------------------
-    if not emisor or not (emisor.ruta_pdf and emisor.ruta_pdf.strip()):
-        alertas.append(
-            {
-                "tipo": "info",
-                "mensaje": (
-                    "No hay ruta de servidor configurada para los PDFs. "
-                    "Puedes seguir usando la carpeta local desde Configuración > PDF."
-                ),
-            }
-        )
-    elif not os.access(emisor.ruta_pdf, os.W_OK):
+    pdf_base = "/data"
+
+    if not os.path.exists(pdf_base):
         alertas.append(
             {
                 "tipo": "danger",
                 "mensaje": (
-                    "La carpeta configurada para los PDF no tiene permisos de escritura: "
-                    f"{emisor.ruta_pdf}. Ajusta permisos o selecciona otra ruta."
+                    "⚠️ No existe la carpeta de almacenamiento de PDFs en el servidor "
+                    "(/data). No será posible generar facturas."
                 ),
             }
         )
+    else:
+        facturas_dir = os.path.join(pdf_base, "FACTURAS_EMITIDAS")
+        try:
+            os.makedirs(facturas_dir, exist_ok=True)
+        except Exception:
+            alertas.append(
+                {
+                    "tipo": "danger",
+                    "mensaje": (
+                        "⚠️ No se ha podido asegurar la carpeta de PDFs "
+                        f"({facturas_dir}). Revisa permisos."
+                    ),
+                }
+            )
 
     # -------------------------------------------------
     # VERI*FACTU CONFIGURACIÓN (empresa actual)

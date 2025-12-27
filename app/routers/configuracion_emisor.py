@@ -51,6 +51,7 @@ MOBILE_REGEX = re.compile(
     r"android|iphone|ipad|ipod|blackberry|phone|mobile",
     re.IGNORECASE
 )
+
 def is_mobile(request: Request) -> bool:
     ua = request.headers.get("user-agent", "")
     return bool(MOBILE_REGEX.search(ua))
@@ -74,6 +75,9 @@ def emisor_view(request: Request, session: Session = Depends(get_session)):
         session.commit()
 
     year = date.today().year
+    hoy = date.today()
+    current_year = hoy.year
+    current_quarter = ((hoy.month - 1) // 3) + 1
 
     existe_validada = session.exec(
         select(Factura)
@@ -89,6 +93,9 @@ def emisor_view(request: Request, session: Session = Depends(get_session)):
             "emisor": emisor,
             "bloqueo_numeracion": existe_validada is not None,
             "env": os.environ.get("ENV", "development"),
+            "current_year": current_year,
+            "current_quarter": current_quarter,
+
         },
     )
 
@@ -396,6 +403,7 @@ def guardar_ruta_pdf(
     ruta_pdf: str = Form(""),
     session: Session = Depends(get_session),
 ):
+
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
