@@ -153,8 +153,13 @@ def on_startup():
     print(">>> Sistema listo")
 
 @app.get("/")
-async def root():
-    return RedirectResponse("/dashboard")
+async def root(request: Request):
+    user = request.session.get("user")
+
+    if user:
+        return RedirectResponse("/dashboard", status_code=303)
+
+    return RedirectResponse("/login", status_code=303)
 
 @app.get("/offline")
 async def offline(request: Request):
