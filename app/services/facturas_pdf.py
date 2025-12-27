@@ -27,7 +27,10 @@ def generar_factura_pdf(
     incluir_mensaje_iva=True,
 ):
 
-    en_render = os.getenv("APP_ENV") == "render" or os.getenv("RENDER")
+    en_render = (
+        os.getenv("APP_ENV", "").lower() == "render" 
+        or os.getenv("RENDER", "").lower() == "true"
+    )
 
     # ============================================
     # PREPARACIÓN ENTORNO
@@ -65,7 +68,6 @@ def generar_factura_pdf(
         nombre_archivo = f"Factura_{safe_num}.pdf"
         ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
 
-        c = canvas.Canvas(ruta_pdf, pagesize=A4)
 
 
     # =============================
