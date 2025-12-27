@@ -96,9 +96,9 @@ app.mount("/pdf", StaticFiles(directory=PDF_ROOT), name="pdf")
 # UPLOADS
 # ============================================================
 
-IS_RENDER = os.getenv("RENDER", False)
+DATA_MODE = Path("/data").exists()
 
-if IS_RENDER:
+if DATA_MODE:
     UPLOADS_DIR = Path("/data/uploads")
 else:
     UPLOADS_DIR = Path("app/static/uploads")
