@@ -899,24 +899,16 @@ def factura_generar_pdf(
     ).first()
 
     # ============================
-    # Resolver ruta oficial
+    # Generar PDF
     # ============================
-    from app.services.resolver_ruta import resolver_ruta_pdf_factura
-
     try:
-        ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
-
-        generar_factura_pdf(
+        ruta_pdf, _ = generar_factura_pdf(
             factura=factura,
             lineas=lineas,
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
         )
-
-        factura.ruta_pdf = f"/storage/view?path={ruta_pdf}"
-        session.add(factura)
-        session.commit()
 
     except Exception as e:
         return templates.TemplateResponse(
@@ -928,7 +920,22 @@ def factura_generar_pdf(
             }
         )
 
-    return RedirectResponse(factura.ruta_pdf, status_code=303)
+
+    # ============================
+    # Guardar la ruta en DB
+    # ============================
+    factura.ruta_pdf = str(ruta_pdf)
+    session.add(factura)
+    session.commit()
+
+    # ============================
+    # ABRIRLO EN EL VISOR /storage
+    # ============================
+
+    return RedirectResponse(
+        f"/storage/view?path={str(ruta_pdf)}",
+        status_code=303
+    )
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()
