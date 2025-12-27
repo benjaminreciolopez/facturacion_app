@@ -140,10 +140,11 @@ async def emisor_upload_logo(
     file: UploadFile,
     session: Session = Depends(get_session),
 ):
-    print("LOGO GUARDADO EN:", path)
-
     if is_mobile(request):
-        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+        raise HTTPException(
+            403,
+            "La configuración solo puede modificarse desde un ordenador"
+        )
 
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
@@ -156,21 +157,36 @@ async def emisor_upload_logo(
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    # ==============================
-    # Carpeta por empresa
-    # ==============================
+    # =========================
+    # Carpeta FINAL según entorno
+    # =========================
     empresa_folder = UPLOAD_DIR / str(empresa_id)
-    empresa_folder.mkdir(parents=True, exist_ok=True)
+
+    try:
+        empresa_folder.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo crear carpeta empresa: {e}")
 
     filename = "logo.png"
     path = empresa_folder / filename
 
-    with open(path, "wb") as f:
-        f.write(await file.read())
+    try:
+        contenido = await file.read()
+        with open(path, "wb") as f:
+            f.write(contenido)
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo guardar el logo: {e}")
 
-    # Guardamos ruta RELATIVA
+    # Guardar SOLO ruta relativa limpia
     emisor.logo_path = f"{empresa_id}/{filename}"
     session.commit()
+
+    print("================================")
+    print("LOGO GUARDADO OK")
+    print("Empresa:", empresa_id)
+    print("Path real:", path)
+    print("Path público:", emisor.logo_path)
+    print("================================")
 
     return RedirectResponse("/configuracion/emisor", status_code=303)
 
