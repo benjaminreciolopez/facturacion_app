@@ -910,7 +910,7 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
             config=config,
             incluir_mensaje_iva=True,
         )
-
+    
     except Exception as e:
         return templates.TemplateResponse(
             "error.html",
@@ -926,8 +926,9 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     # ============================
     # Caso A → estamos en local y se guardó fichero físico
     if isinstance(pdf_output, str) and os.path.isfile(pdf_output):
-        # Opcional: abrir directamente el archivo servido desde /pdf
-        return RedirectResponse(filename, status_code=303)
+        factura.ruta_pdf = pdf_output
+        session.add(factura)
+        session.commit()
 
     # Caso B → Render u otro entorno: BytesIO → Descargar al usuario
     from fastapi.responses import StreamingResponse
