@@ -65,21 +65,23 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-session-key")
 # MIDDLEWARE → ORDEN CORRECTO REAL
 # ============================================================
 
-# 1️⃣ primero se ejecutará ESTE (Auth)
-app.add_middleware(AuthMiddleware)
-
-# 2️⃣ luego este
-app.add_middleware(FirstRunMiddleware)
-
 # 3️⃣ y por último ESTE debe ser añadido AL FINAL
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
-    same_site="lax",
-    https_only=False,
+    same_site="none",
+    https_only=True,
     max_age=3600,
 )
+
+# 2️⃣ luego este
+app.add_middleware(FirstRunMiddleware)
+
+
+# 1️⃣ primero se ejecutará ESTE (Auth)
+app.add_middleware(AuthMiddleware)
+
 
 # ============================================================
 # PDF + STATIC
