@@ -5,7 +5,10 @@ const DYNAMIC_CACHE = `dynamic-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   "/",
   "/dashboard",
+  "/facturas",
+  "/facturas/offline",
   "/offline",
+
   "/static/manifest.json",
   "/static/style.css",
   "/static/js/offline_db.js",
@@ -133,12 +136,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   // API & páginas → network first
-  if (
-    url.pathname.startsWith("/api") ||
-    url.pathname.startsWith("/facturas") ||
-    url.pathname.startsWith("/configuracion/emisor") || // 👈 AÑADIR ESTO
-    event.request.mode === "navigate"
-  ) {
+  if (url.pathname.startsWith("/api")) {
+    return; // API no se cachea, ya gestionas offline vía IndexedDB
+  }
+
+  // Navegación → network first con fallback
+  if (event.request.mode === "navigate") {
     return event.respondWith(networkFirst(event.request));
   }
 
