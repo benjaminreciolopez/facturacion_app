@@ -11,45 +11,49 @@ import re
 def generar_numero_factura(session: Session, fecha: date, empresa_id: int) -> str:
     
     emisor = session.exec(
-            select(Emisor).where(Emisor.empresa_id == empresa_id)
-        ).first()    
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
     if not emisor:
         raise HTTPException(400, "No hay emisor configurado para esta empresa")
 
     year = fecha.year
 
-    # Reiniciar correlativo al cambiar de año
+    # Reiniciar correlativo si cambia de año
     if emisor.ultimo_anio_numerado != year:
         emisor.siguiente_numero = 1
         emisor.ultimo_anio_numerado = year
         session.add(emisor)
         session.commit()
 
-    correlativo = emisor.siguiente_numero
-    plantilla = emisor.numeracion_plantilla
+    correlativo = emisor.siguiente_numero or 1
+    plantilla = (emisor.numeracion_plantilla or "{YEAR}-{NUM:04d}").strip()
 
-    # ----------------------------------------------------
-    # Procesar {NUM:0Nd}
-    # ----------------------------------------------------
-
+    # ===============================
+    # {NUM:0Nd}
+    # ===============================
     def repl_num(match):
-        formato = match.group(1)  # Ejemplo: "04d"
-        ancho = int(formato[:-1])  # quitar la "d" final
+        formato = match.group(1)      # ej: 04
+        ancho = int(formato)
         return f"{correlativo:0{ancho}d}"
 
-    # Reemplazo flexible para {NUM:0Nd}
     numero = re.sub(r"\{NUM:(0\d+)d\}", repl_num, plantilla)
 
-    # Reemplazo simple {NUMERO}
+    # ===============================
+    # Otros placeholders
+    # ===============================
     numero = numero.replace("{NUM}", str(correlativo))
-
-    # Reemplazo variables restantes
-    numero = numero.replace("{SERIE}", emisor.serie_facturacion or "")
+    numero = numero.replace("{SERIE}", (emisor.serie_facturacion or "").strip())
     numero = numero.replace("{YEAR}", str(year))
     numero = numero.replace("{MONTH}", f"{fecha.month:02d}")
 
-    # Incrementar correlativo
-    emisor.siguiente_numero + 1
+    # Limpieza final → si queda algo raro, lo quitamos
+    numero = re.sub(r"\{.*?\}", "", numero).strip()
+
+    # ===============================
+    # Incrementar correlativo REAL
+    # ===============================
+    emisor.siguiente_numero = correlativo + 1
     session.add(emisor)
     session.commit()
 
