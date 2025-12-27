@@ -65,7 +65,13 @@ SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-session-key")
 # MIDDLEWARE → ORDEN CORRECTO REAL
 # ============================================================
 
-# 3️⃣ y por último ESTE debe ser añadido AL FINAL
+# 1️⃣ primero registra Auth
+app.add_middleware(AuthMiddleware)
+
+# 2️⃣ luego first run
+app.add_middleware(FirstRunMiddleware)
+
+# 3️⃣ ÚLTIMO → debe ir la sesión
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
@@ -74,13 +80,6 @@ app.add_middleware(
     https_only=True,
     max_age=3600,
 )
-
-# 2️⃣ luego este
-app.add_middleware(FirstRunMiddleware)
-
-
-# 1️⃣ primero se ejecutará ESTE (Auth)
-app.add_middleware(AuthMiddleware)
 
 
 # ============================================================
