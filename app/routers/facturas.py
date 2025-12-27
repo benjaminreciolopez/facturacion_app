@@ -892,8 +892,6 @@ def factura_generar_pdf(
 
     ruta_base = (emisor.ruta_pdf or "").strip()
 
-    if not ruta_base or not os.path.isdir(ruta_base):
-        raise HTTPException(400, "La carpeta de PDFs configurada no es válida")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -905,7 +903,7 @@ def factura_generar_pdf(
     # 2) Generar PDF LOCAL
     # ============================
     try:
-        pdf_path, filename = generar_factura_pdf(
+        pdf_output, filename = generar_factura_pdf(
             factura=factura,
             lineas=lineas,
             ruta_base=ruta_base,     # SIEMPRE ruta local
@@ -924,19 +922,30 @@ def factura_generar_pdf(
             }
         )
 
-    # ============================
-    # 3) Guardar ruta en factura
-    # ============================
-    if isinstance(pdf_path, str) and os.path.isfile(pdf_path):
-        factura.ruta_pdf = pdf_path
+    # =========================================
+    # MODO LOCAL → devuelve archivo físico
+    # =========================================
+    if isinstance(pdf_output, str) and os.path.isfile(pdf_output):
+        factura.ruta_pdf = pdf_output
         session.add(factura)
         session.commit()
 
-    # ============================
-    # 4) Volver a listado
-    # ============================
-    return RedirectResponse("/facturas", status_code=303)
+        return RedirectResponse("/facturas", status_code=303)
 
+    # =========================================
+    # MODO RENDER → PDF EN MEMORIA
+    # =========================================
+    from fastapi.responses import StreamingResponse
+
+    pdf_output.seek(0)
+
+    return StreamingResponse(
+        pdf_output,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"'
+        }
+    )
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()
