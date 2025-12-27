@@ -132,7 +132,7 @@ def emisor_save(request: Request,
 
 
 # =========================================================
-# LOGO
+# LOGO - SUBIR
 # =========================================================
 @router.post("/logo")
 async def emisor_upload_logo(
@@ -158,7 +158,7 @@ async def emisor_upload_logo(
         raise HTTPException(404, "Emisor no encontrado")
 
     # =========================
-    # Carpeta FINAL según entorno
+    # Carpeta FINAL
     # =========================
     empresa_folder = UPLOAD_DIR / str(empresa_id)
 
@@ -177,7 +177,7 @@ async def emisor_upload_logo(
     except Exception as e:
         raise HTTPException(500, f"No se pudo guardar el logo: {e}")
 
-    # Guardar SOLO ruta relativa limpia
+    # Guardar SOLO ruta relativa
     emisor.logo_path = f"{empresa_id}/{filename}"
     session.commit()
 
@@ -190,13 +190,19 @@ async def emisor_upload_logo(
 
     return RedirectResponse("/configuracion/emisor", status_code=303)
 
+# =========================================================
+# LOGO - ELIMINAR
+# =========================================================
 @router.post("/logo/eliminar")
 async def emisor_eliminar_logo(
     request: Request,
     session: Session = Depends(get_session),
 ):
     if is_mobile(request):
-        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+        raise HTTPException(
+            403,
+            "La configuración solo puede modificarse desde un ordenador"
+        )
 
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
@@ -214,8 +220,8 @@ async def emisor_eliminar_logo(
     try:
         if file_path.exists():
             file_path.unlink()
-    except:
-        pass
+    except Exception as e:
+        print("Error eliminando logo:", e)
 
     emisor.logo_path = None
     session.commit()

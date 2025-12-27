@@ -133,8 +133,8 @@
   <div class="w-48 h-48 border rounded flex items-center justify-center bg-white shadow mt-3 mb-3">
     {% if emisor.logo_path %}
       <img id="preview-logo"
-          src="/static/uploads/{{ emisor.logo_path }}"
-          class="max-h-44 max-w-44 object-contain" />
+           src="/static/uploads/{{ emisor.logo_path }}"
+           class="max-h-44 max-w-44 object-contain" />
       <span id="preview-placeholder" class="hidden"></span>
     {% else %}
       <img id="preview-logo" class="max-h-44 max-w-44 object-contain hidden" />
@@ -167,6 +167,7 @@
   </form>
   {% endif %}
 </div>
+
 <script>
   function previewLogo(input) {
     const file = input.files?.[0];
@@ -177,7 +178,7 @@
 
     preview.src = URL.createObjectURL(file);
     preview.classList.remove("hidden");
-    placeholder?.classList.add("hidden");
+    if (placeholder) placeholder.classList.add("hidden");
   }
 </script>
 
