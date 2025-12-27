@@ -71,6 +71,13 @@ def generar_factura_pdf(
         # 👈 ESTA LÍNEA ERA LA QUE FALTABA
         c = canvas.Canvas(ruta_pdf, pagesize=A4)
 
+        print("=== PDF LOCAL ===")
+        print("APP_ENV:", os.getenv("APP_ENV"))
+        print("RENDER:", os.getenv("RENDER"))
+        print("ruta_base recibida:", ruta_base)
+        print("base_dir resuelto:", base_dir)
+        print("carpeta_destino:", carpeta_destino)
+        print("ruta_pdf final:", ruta_pdf)
 
 
     # =============================
@@ -422,6 +429,7 @@ def generar_factura_pdf(
             c.drawString(margen_x, y_legal, linea)
             y_legal -= 12
 
+    print("GUARDANDO PDF EN:", ruta_pdf)
 
     c.save()
 
