@@ -79,7 +79,6 @@ app.add_middleware(
     same_site="none",
     https_only=True,
     max_age=3600,
-    secure=True,
 )
 
 
