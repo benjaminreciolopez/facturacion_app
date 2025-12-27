@@ -70,7 +70,7 @@ app.add_middleware(
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
     same_site="lax",
-    https_only=True,
+    https_only=False,
     max_age=3600,
 )
 
