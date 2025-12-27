@@ -734,7 +734,6 @@ def validar_factura(
         generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=ruta_base,   # local → guarda; Render → buffer
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
@@ -1093,7 +1092,6 @@ def factura_anular(
         generar_factura_pdf(
             factura=rect,
             lineas=session.exec(select(LineaFactura).where(LineaFactura.factura_id == rect.id)).all(),
-            ruta_base=str(base_dir),
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
@@ -1196,7 +1194,6 @@ def factura_rectificar(
        generar_factura_pdf(
             factura=rect,
             lineas=session.exec(select(LineaFactura).where(LineaFactura.factura_id == rect.id)).all(),
-            ruta_base=str(base_dir),
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
@@ -1346,7 +1343,6 @@ async def enviar_factura_email(request: Request,
             generar_factura_pdf(
                 factura=factura,
                 lineas=factura.lineas,
-                ruta_base=str(base_dir),
                 emisor=emisor,
                 config=config,
                 incluir_mensaje_iva=True,

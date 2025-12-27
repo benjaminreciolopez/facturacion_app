@@ -21,7 +21,6 @@ from io import BytesIO
 def generar_factura_pdf(
     factura,
     lineas,
-    ruta_base,
     emisor,
     config: ConfiguracionSistema | None = None,
     incluir_mensaje_iva=True,

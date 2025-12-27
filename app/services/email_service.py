@@ -208,7 +208,6 @@ def enviar_email_factura(request: Request,
             generar_factura_pdf(
                 factura=factura,
                 lineas=factura.lineas,
-                ruta_base=tmp_dir,
                 emisor=emisor,
                 config=config,
                 incluir_mensaje_iva=True,
