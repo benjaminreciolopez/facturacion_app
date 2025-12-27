@@ -105,11 +105,20 @@ else:
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+# ============================================================
+# SERVIR UPLOADS
+# ============================================================
 if IS_RENDER:
     app.mount(
         "/static/uploads",
-        StaticFiles(directory=UPLOADS_DIR),
-        name="uploads"
+        StaticFiles(directory="/data/uploads"),
+        name="uploads",
+    )
+else:
+    app.mount(
+        "/static/uploads",
+        StaticFiles(directory="app/static/uploads"),
+        name="uploads",
     )
 
 

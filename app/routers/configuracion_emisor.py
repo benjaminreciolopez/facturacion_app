@@ -373,7 +373,7 @@ def guardar_ruta_pdf(
 ):
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
-    
+
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -386,21 +386,32 @@ def guardar_ruta_pdf(
         raise HTTPException(404, "Emisor no encontrado")
 
     ruta_pdf = ruta_pdf.strip()
-
     if not ruta_pdf:
         raise HTTPException(400, "Debe indicar una ruta válida")
 
     from pathlib import Path
+    import os
 
+    # =========================
+    # FORZAR RUTA SEGURA EN RENDER
+    # =========================
+    IS_RENDER = os.getenv("RENDER", False)
+
+    if IS_RENDER:
+        # Si el usuario escribe solo "facturas"
+        # se convierte en /data/facturas
+        if not ruta_pdf.startswith("/data"):
+            ruta_pdf = f"/data/{ruta_pdf.lstrip('/')}"
+    
     p = Path(ruta_pdf)
 
-    # Intentar crear si no existe
     try:
         p.mkdir(parents=True, exist_ok=True)
 
         test = p / ".test"
         test.write_text("ok")
         test.unlink()
+
     except Exception as e:
         raise HTTPException(
             400,
