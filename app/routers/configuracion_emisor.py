@@ -135,13 +135,14 @@ def emisor_save(request: Request,
 # LOGO
 # =========================================================
 @router.post("/logo")
-async def emisor_upload_logo(request: Request,
+async def emisor_upload_logo(
+    request: Request,
     file: UploadFile,
     session: Session = Depends(get_session),
 ):
     if is_mobile(request):
-            raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
-   
+        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
+
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -153,24 +154,31 @@ async def emisor_upload_logo(request: Request,
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    filename = "logo_emisor.png"
-    path = UPLOAD_DIR / filename
+    # === Carpeta por empresa ===
+    empresa_dir = UPLOAD_DIR / str(empresa_id)
+    empresa_dir.mkdir(parents=True, exist_ok=True)
 
+    filename = "logo.png"
+    path = empresa_dir / filename
+
+    # Guardar archivo
     with open(path, "wb") as f:
         f.write(await file.read())
 
-    # Guardamos SOLO el nombre
-    emisor.logo_path = filename
+    # Guardar SOLO nombre relativo
+    emisor.logo_path = f"{empresa_id}/{filename}"
     session.commit()
 
     return RedirectResponse("/configuracion/emisor", status_code=303)
 
 @router.post("/logo/eliminar")
-async def emisor_eliminar_logo(request: Request, session: Session = Depends(get_session)):
-
+async def emisor_eliminar_logo(
+    request: Request,
+    session: Session = Depends(get_session),
+):
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
-   
+
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -179,24 +187,16 @@ async def emisor_eliminar_logo(request: Request, session: Session = Depends(get_
         select(Emisor).where(Emisor.empresa_id == empresa_id)
     ).first()
 
-    if not emisor:
-        raise HTTPException(404, "Emisor no encontrado")
-
-    if not emisor.logo_path:
+    if not emisor or not emisor.logo_path:
         return RedirectResponse("/configuracion/emisor", status_code=303)
 
-    # URL tipo: /static/uploads/logo_emisor.png  -> nombre: logo_emisor.png
-    filename = Path(emisor.logo_path).name
-    file_path = UPLOAD_DIR / filename
+    file_path = UPLOAD_DIR / emisor.logo_path
 
     try:
         if file_path.exists():
             file_path.unlink()
-        else:
-            # Para depurar si hace falta
-            print("Logo no encontrado en:", file_path)
-    except Exception as e:
-        print(f"Error eliminando logo: {e}")
+    except:
+        pass
 
     emisor.logo_path = None
     session.commit()

@@ -105,21 +105,11 @@ else:
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ============================================================
-# SERVIR UPLOADS
-# ============================================================
-if IS_RENDER:
-    app.mount(
-        "/static/uploads",
-        StaticFiles(directory="/data/uploads"),
-        name="uploads",
-    )
-else:
-    app.mount(
-        "/static/uploads",
-        StaticFiles(directory="app/static/uploads"),
-        name="uploads",
-    )
+app.mount(
+    "/static/uploads",
+    StaticFiles(directory=str(UPLOADS_DIR)),
+    name="uploads",
+)
 
 
 # ============================================================
@@ -216,25 +206,10 @@ def get_emisor_logo(context):
                 select(Emisor).where(Emisor.empresa_id == empresa_id)
             ).first()
 
-            if not emisor or not emisor.logo_path:
-                return None
+            if emisor and emisor.logo_path:
+                return f"/static/uploads/{emisor.logo_path}"
 
-            path = str(emisor.logo_path)
-
-            # Normalizar Render / Local
-            # Si viene como "data/uploads/xxx"
-            if "data/uploads" in path:
-                filename = path.split("/")[-1]
-                return f"/static/uploads/{filename}"
-
-            # Si ya viene correcto
-            if path.startswith("uploads/"):
-                return f"/static/{path}"
-
-            # fallback general
-            filename = path.split("/")[-1]
-            return f"/static/uploads/{filename}"
-
+        return None
     except:
         return None
 
