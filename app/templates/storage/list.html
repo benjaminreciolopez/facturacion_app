@@ -3,18 +3,21 @@
 <h2 class="mb-1">Almacenamiento del servidor</h2>
 <p class="text-muted">Ubicación actual: {{ path }}</p>
 
-<!-- BREADCRUMB -->
+<!-- ================= BREADCRUMB ================ -->
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
-    {% for b in breadcrumb %}
+    {% for b in breadcrumb %} {% if loop.last %}
+    <li class="breadcrumb-item active" aria-current="page">{{ b.nombre }}</li>
+    {% else %}
     <li class="breadcrumb-item">
       <a href="/storage/ui?path={{ b.ruta }}">{{ b.nombre }}</a>
     </li>
-    {% endfor %}
+    {% endif %} {% endfor %}
   </ol>
 </nav>
 
-<table class="table table-hover align-middle">
+<!-- ================= LISTADO ================= -->
+<table class="table table-hover align-middle" id="storageTable">
   <thead>
     <tr>
       <th>Nombre</th>
@@ -46,14 +49,15 @@
         {% endif %}
       </td>
 
-      <td class="text-end">
+      <td class="text-end acciones" style="visibility: hidden">
         {% if not f.es_dir %}
         <a
           href="/storage/view?path={{ f.ruta }}"
-          class="btn btn-sm btn-outline-primary"
           target="_blank"
+          class="btn btn-sm btn-outline-primary"
           >Ver</a
         >
+
         <a
           href="/storage/download?path={{ f.ruta }}"
           class="btn btn-sm btn-success"
@@ -62,7 +66,7 @@
         {% endif %}
 
         <button
-          class="btn btn-sm btn-danger ms-1 btn-delete"
+          class="btn btn-sm btn-danger btn-delete"
           data-path="{{ f.ruta }}"
         >
           Eliminar
@@ -72,73 +76,67 @@
     {% endfor %}
   </tbody>
 </table>
-<script>
-  async function cargarStorage() {
-    const res = await fetch("/storage", { credentials: "include" });
-    const data = await res.json();
 
-    const tbody = document.getElementById("storageTable");
-    tbody.innerHTML = "";
-
-    data.items.forEach((item) => {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-      <td>${item.ruta}</td>
-      <td>${item.tipo === "dir" ? "Carpeta" : "Archivo"}</td>
-      <td>${item.tamano ? (item.tamano / 1024).toFixed(1) + " KB" : "-"}</td>
-
-      <td class="text-end">
-
-      ${
-        item.tipo === "file"
-          ? `
-        <a class="btn btn-sm btn-outline-primary" target="_blank"
-          href="/data/${item.ruta}">
-          Ver
-        </a>
-
-        <a class="btn btn-sm btn-success"
-          href="/storage/download?path=${item.ruta}">
-          Descargar
-        </a>
-        `
-          : ""
-      }
-
-        <button class="btn btn-sm btn-danger"
-          onclick="eliminar('${item.ruta}')">
-          Eliminar
-        </button>
-      </td>
-    `;
-
-      tbody.appendChild(tr);
-    });
+<style>
+  .fila-explorer.selected {
+    background: #e8f2ff !important;
+    box-shadow: inset 0 0 0 2px #3b82f6;
   }
+</style>
 
-  async function eliminar(path) {
-    if (!confirm("¿Eliminar " + path + "?")) return;
+<script>
+  /* =========================
+   Selección estilo Explorer
+========================= */
 
-    await fetch("/storage?path=" + path, {
-      method: "DELETE",
-      credentials: "include",
+  const filas = document.querySelectorAll(".fila-explorer");
+  let seleccionada = null;
+
+  filas.forEach((row) => {
+    // click → seleccionar
+    row.addEventListener("click", () => {
+      if (seleccionada) seleccionada.classList.remove("selected");
+      document
+        .querySelectorAll(".acciones")
+        .forEach((a) => (a.style.visibility = "hidden"));
+
+      seleccionada = row;
+      row.classList.add("selected");
+
+      const acciones = row.querySelector(".acciones");
+      if (acciones) acciones.style.visibility = "visible";
     });
 
-    cargarStorage();
-  }
-
-  document.addEventListener("DOMContentLoaded", cargarStorage);
-</script>
-<script>
-  document.querySelectorAll(".fila-explorer").forEach((row) => {
+    // doble click → abrir
     row.addEventListener("dblclick", () => {
       const isDir = row.dataset.isdir === "1";
       const path = row.dataset.path;
 
       if (isDir) {
         window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
+      } else {
+        window.open(`/storage/view?path=${encodeURIComponent(path)}`, "_blank");
       }
+    });
+  });
+
+  /* =========================
+   Eliminar archivo / carpeta
+========================= */
+
+  document.querySelectorAll(".btn-delete").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+
+      const path = btn.dataset.path;
+      if (!confirm("¿Eliminar " + path + "?")) return;
+
+      await fetch(`/storage?path=${encodeURIComponent(path)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      window.location.reload();
     });
   });
 </script>

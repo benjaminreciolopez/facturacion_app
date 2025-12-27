@@ -122,7 +122,7 @@ def storage_explorer(
         })
 
     return templates.TemplateResponse(
-        "storage/ui.html",
+        "storage/list.html",
         {
             "request": request,
             "path": path,
