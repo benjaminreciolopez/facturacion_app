@@ -43,18 +43,13 @@ def generar_factura_pdf(
     safe_num = numero.replace("/", "-").replace("\\", "-")
 
     # ============================================
-    # ENTORNO RENDER → NO DISCO
+    # CREAR CANVAS
     # ============================================
     if en_render:
         buffer = BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
-
         ruta_pdf = None
         ruta_url = None
-
-    # ============================================
-    # ENTORNO LOCAL → GUARDAR A DISCO
-    # ============================================
     else:
         if not ruta_base:
             raise Exception("Ruta PDF no configurada en el emisor.")
@@ -76,7 +71,6 @@ def generar_factura_pdf(
     # =============================
     # Crear PDF
     # =============================
-    c = canvas.Canvas(ruta_pdf, pagesize=A4)
     ancho, alto = A4
     margen_x = 30
     top_y = alto - 40
