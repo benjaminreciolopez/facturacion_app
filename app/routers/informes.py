@@ -38,38 +38,61 @@ def informes_home(
     )
 
 
-# ============================================================
-# SERVIR PDF FACTURA
-# ============================================================
+from fastapi import Request
+from pathlib import Path
+from app.core.auth_empresa import get_empresa_id   # usa tu helper real
+
+
 @router.get("/pdf/{year}/{trimestre}/{filename}")
 def servir_pdf(
+    request: Request,
     year: int,
     trimestre: str,
     filename: str,
     session: Session = Depends(get_session),
 ):
-    emisor = session.get(Emisor, 1)
+    # ============================
+    # Multiempresa
+    # ============================
+    empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
 
     if not emisor or not emisor.ruta_pdf:
+        raise HTTPException(404, "No hay ruta de PDFs configurada para esta empresa.")
+
+    # ============================
+    # Render NO sirve PDFs
+    # ============================
+    if os.getenv("RENDER"):
         raise HTTPException(
-            status_code=404,
-            detail="No hay ruta de PDFs configurada.",
+            400,
+            "En este entorno los PDF no se almacenan en servidor. Descárgalo o solicítalo de nuevo."
         )
 
-    if trimestre not in {"Q1", "Q2", "Q3", "Q4"}:
+    # ============================
+    # Validar trimestre formato
+    # ============================
+    trimestre = trimestre.upper()
+    if trimestre not in {"T1", "T2", "T3", "T4"}:
         raise HTTPException(400, "Trimestre no válido")
 
-    ruta = os.path.join(
-        emisor.ruta_pdf,
-        str(year),
-        trimestre,
-        filename,
-    )
+    # ============================
+    # Seguridad filename
+    # ============================
+    filename = os.path.basename(filename)
 
-    if not os.path.exists(ruta):
+    base = Path(emisor.ruta_pdf)
+    ruta = base / str(year) / trimestre / filename
+
+    if not ruta.exists():
         raise HTTPException(
-            status_code=404,
-            detail="El PDF no existe en el servidor.",
+            404,
+            f"El PDF no existe en el servidor ({ruta}).",
         )
 
     return FileResponse(

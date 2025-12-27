@@ -27,7 +27,6 @@ from app.models.auditoria import Auditoria
 from app.services.resumen_fiscal_service import calcular_estado_fiscal
 from app.constants.auditoria import RES_OK, RES_ERROR
 from app.services.verifactu_envio import enviar_a_aeat
-from app.models.configuracion_sistema import ConfiguracionSistema
 from app.services.email_service import run_async, enviar_email_factura_construido
 from app.utils.session_empresa import get_empresa_id
 
@@ -587,7 +586,9 @@ def validar_factura(
         )
         raise
 
-    # 2) Comprobar ruta PDF pero NO bloquear si no existe
+    # ============================
+    # 2) NO bloquear por PDF
+    # ============================
     empresa_id = get_empresa_id(request)
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -598,21 +599,18 @@ def validar_factura(
 
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
+
     ruta_base = (emisor.ruta_pdf or "").strip()
 
-    usar_ruta_servidor = False
-
-    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        usar_ruta_servidor = True
-
-    # 3) Comprobar orden cronológico SIEMPRE
+    # ============================
+    # 3) Comprobar orden cronológico
+    # ============================
     ultima = session.exec(
         select(Factura)
         .where(Factura.estado == "VALIDADA")
         .where(Factura.empresa_id == empresa_id)
         .order_by(Factura.fecha.desc())
     ).first()
-
 
     if ultima and fecha < ultima.fecha:
         auditar(
@@ -628,7 +626,9 @@ def validar_factura(
         )
         return {"ok": False, "error": "Fecha inválida."}
 
-    # 4) Numeración y datos finales
+    # ============================
+    # 4) Numeración + datos
+    # ============================
     numero = generar_numero_factura(session, fecha, empresa_id)
     factura.numero = numero
     factura.fecha = fecha
@@ -637,14 +637,18 @@ def validar_factura(
     if mensaje_iva:
         factura.mensaje_iva = mensaje_iva
 
+    # ============================
     # 5) Recalcular totales
+    # ============================
     lineas = session.exec(
         select(LineaFactura).where(LineaFactura.factura_id == factura_id)
     ).all()
 
     recalcular_totales(factura, lineas)
 
-    # 6) VeriFactu (genera hash + registro + envío mock)
+    # ============================
+    # 6) VeriFactu
+    # ============================
     try:
         verificar_verifactu(factura, session)
     except HTTPException as e:
@@ -674,24 +678,21 @@ def validar_factura(
         )
         raise
 
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
-
     config = session.exec(
         select(ConfiguracionSistema).where(
             ConfiguracionSistema.empresa_id == empresa_id
         )
     ).first()
 
-    # 7) Validar factura definitivamente
+    # ============================
+    # 7) Validar definitivamente
+    # ============================
     factura.estado = "VALIDADA"
     factura.fecha_validacion = date.today()
 
     try:
         bloquear_numeracion(session, fecha, empresa_id)
     except HTTPException as e:
-        # Si tu lógica fiscal bloquea la numeración (cierre de periodo, etc.)
         auditar(
             session,
             entidad="FACTURA",
@@ -724,27 +725,37 @@ def validar_factura(
     session.commit()
     session.refresh(factura)
 
+    # ============================
     # 8) Generar PDF
-    pdf_file_path = None
-    pdf_url = None
-
-    if usar_ruta_servidor:
-        ruta_fisica, ruta_url = generar_factura_pdf(
+    # (NO dependemos de ruta servidor)
+    # ============================
+    try:
+        generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=ruta_base,
+            ruta_base=ruta_base,   # local → guarda; Render → buffer
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
         )
-        pdf_file_path = ruta_fisica
-        pdf_url = ruta_url
+    except Exception as e:
+        # IMPORTANTE: el PDF NO debe bloquear validación fiscal
+        # Solo auditamos aviso
+        auditar(
+            session,
+            entidad="FACTURA",
+            entidad_id=factura.id,
+            accion="PDF",
+            resultado="ERROR",
+            nivel_evento="WARN",
+            motivo=f"PDF no generado: {e}",
+            ip=get_ip(request) if request else None,
+            user_agent=get_user_agent(request) if request else None,
+        )
 
-    factura.ruta_pdf = pdf_url
-    session.add(factura)
-    session.commit()
-
-    # 9) Auditoría OK final
+    # ============================
+    # 9) Auditoría final OK
+    # ============================
     auditar(
         session,
         entidad="FACTURA",
@@ -759,8 +770,7 @@ def validar_factura(
     return {
         "ok": True,
         "id": factura.id,
-        "numero": numero,
-        "pdf_en_servidor": usar_ruta_servidor
+        "numero": numero
     }
 
 @router.get("/min-date")
@@ -866,7 +876,9 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
         select(LineaFactura).where(LineaFactura.factura_id == factura_id)
     ).all()
 
-    # 1) Verificar ruta del emisor
+    # ============================
+    # 1) Emisor + Config
+    # ============================
     empresa_id = get_empresa_id(request)
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -877,43 +889,8 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
 
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
+
     ruta_base = (emisor.ruta_pdf or "").strip()
-
-    if not ruta_base:
-        # NO configurada – mostrar error elegante
-        return templates.TemplateResponse(
-            "error.html",
-            {
-                "request": request,
-                "mensaje": "No se ha configurado ninguna ruta para guardar los PDF.",
-                "solucion": "Ve a Configuración > Emisor y define una carpeta."
-            }
-        )
-
-    # 2) Verificar que la ruta existe físicamente
-    if not os.path.isdir(ruta_base):
-        return templates.TemplateResponse(
-            "error.html",
-            {
-                "request": request,
-                "mensaje": f"La carpeta configurada no existe: {ruta_base}",
-                "solucion": "Crea la carpeta o selecciona otra ruta en Configuración > Emisor."
-            }
-        )
-
-    # 3) Verificar permisos de escritura
-    if not os.access(ruta_base, os.W_OK):
-        return templates.TemplateResponse(
-            "error.html",
-            {
-                "request": request,
-                "mensaje": f"No hay permisos para escribir en la carpeta: {ruta_base}",
-                "solucion": "Otorga permisos o selecciona otra carpeta."
-            }
-        )
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -921,37 +898,49 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
         )
     ).first()
 
-
     # ============================
-    # Generación PDF
+    # 2) Generar PDF
     # ============================
-    pdf_file_path = None
-    pdf_url = None
-
-    # Determinar si el servidor PUEDE generar y guardar PDFs
-    usar_ruta_servidor = False
-    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        usar_ruta_servidor = True
-
-    if usar_ruta_servidor:
-        ruta_fisica, ruta_url = generar_factura_pdf(
+    try:
+        pdf_output, filename = generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=ruta_base,
+            ruta_base=ruta_base,      # LOCAL → fichero | RENDER → ignorado
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
         )
 
-        pdf_file_path = ruta_fisica
-        pdf_url = ruta_url
+    except Exception as e:
+        return templates.TemplateResponse(
+            "error.html",
+            {
+                "request": request,
+                "mensaje": "No fue posible generar el PDF de la factura.",
+                "solucion": str(e),
+            }
+        )
 
-    # Guardar resultado en la factura
-    factura.ruta_pdf = pdf_url
-    session.add(factura)
-    session.commit()
+    # ============================
+    # 3) Respuesta según entorno
+    # ============================
+    # Caso A → estamos en local y se guardó fichero físico
+    if isinstance(pdf_output, str) and os.path.isfile(pdf_output):
+        # Puedes si quieres notificar éxito con flash, pero de momento redirigimos
+        return RedirectResponse("/facturas", status_code=303)
 
-    return RedirectResponse("/facturas", status_code=303)
+    # Caso B → Render u otro entorno: BytesIO → Descargar al usuario
+    from fastapi.responses import StreamingResponse
+
+    pdf_output.seek(0)
+
+    return StreamingResponse(
+        pdf_output,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"'
+        }
+    )
 
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
@@ -1147,23 +1136,21 @@ def factura_anular(
     ).first()
 
     # ============================
-    # 5) GENERAR PDF
+    # 5) GENERAR PDF (solo local si procede)
     # ============================
-    pdf_url = None
     if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        ruta_fisica, ruta_url = generar_factura_pdf(
-            factura=rect,
-            lineas=lineas_rect,
-            ruta_base=ruta_base,
-            emisor=emisor,
-            config=config,
-            incluir_mensaje_iva=True,
-        )
-        pdf_url = ruta_url
-
-    rect.ruta_pdf = pdf_url
-    session.add(rect)
-    session.commit()
+        try:
+            generar_factura_pdf(
+                factura=rect,
+                lineas=lineas_rect,
+                ruta_base=ruta_base,
+                emisor=emisor,
+                config=config,
+                incluir_mensaje_iva=True,
+            )
+        except Exception as e:
+            # No rompemos anulación fiscal si falla el PDF
+            pass
 
     auditar(
         session,
@@ -1315,25 +1302,22 @@ def factura_rectificar(
         )
     ).first()
 
-    # PDF
-    pdf_file_path = None
-    pdf_url = None
-
-    if usar_ruta_servidor:
-        ruta_fisica, ruta_url = generar_factura_pdf(
-            factura=rect,
-            lineas=lineas_rect,
-            ruta_base=ruta_base,
-            emisor=emisor,
-            config=config,
-            incluir_mensaje_iva=True,
-        )
-        pdf_file_path = ruta_fisica
-        pdf_url = ruta_url
-
-    rect.ruta_pdf = pdf_url
-    session.add(rect)
-    session.commit()
+    # ============================
+    # PDF (solo local si existe ruta válida)
+    # ============================
+    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+        try:
+            generar_factura_pdf(
+                factura=rect,
+                lineas=lineas_rect,
+                ruta_base=ruta_base,
+                emisor=emisor,
+                config=config,
+                incluir_mensaje_iva=True,
+            )
+        except Exception:
+            # El fallo del PDF NO puede invalidar la operación fiscal
+            pass
 
     auditar(
         session,
@@ -1472,16 +1456,46 @@ async def enviar_factura_email(request: Request,
 
     if adjuntar_pdf:
         from app.services.facturas_pdf import generar_factura_pdf
+        import tempfile
+        import os
+
         ruta_base = (emisor.ruta_pdf or "").strip()
 
-        ruta_fisica, _ = generar_factura_pdf(
-            factura=factura,
-            lineas=factura.lineas,
-            ruta_base=ruta_base,
-            emisor=emisor,
-            config=config
-        )
-        pdf_path = ruta_fisica
+        # ============================
+        # 1) Si hay carpeta local válida → úsala
+        # ============================
+        if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
+            ruta_fisica, _ = generar_factura_pdf(
+                factura=factura,
+                lineas=factura.lineas,
+                ruta_base=ruta_base,
+                emisor=emisor,
+                config=config,
+                incluir_mensaje_iva=True,
+            )
+            pdf_path = ruta_fisica
+
+        else:
+            # ============================
+            # 2) Servidor / sin ruta → generar PDF temporal
+            # ============================
+            tmp_dir = tempfile.gettempdir()
+            tmp_file = os.path.join(
+                tmp_dir,
+                f"factura_{factura.id or 'tmp'}.pdf"
+            )
+
+            generar_factura_pdf(
+                factura=factura,
+                lineas=factura.lineas,
+                ruta_base=tmp_dir,
+                emisor=emisor,
+                config=config,
+                incluir_mensaje_iva=True,
+                nombre_personalizado=os.path.basename(tmp_file)
+            )
+
+            pdf_path = tmp_file
 
 
     # =========================

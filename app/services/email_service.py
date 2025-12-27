@@ -174,37 +174,52 @@ def enviar_email_factura(request: Request,
     msg.attach(MIMEText(cuerpo, "html", "utf-8"))
 
     # -------- PDF --------
+    pdf_path = None
+
     if adjuntar_pdf:
+        import tempfile
+
         ruta_base = (emisor.ruta_pdf or "").strip()
-        if not ruta_base:
-            raise Exception("No hay ruta PDF configurada en Emisor")
 
-        pdf_path = None
-
-        if factura.ruta_pdf:
-            year = factura.fecha.year
-            trimestre = f"T{((factura.fecha.month - 1) // 3) + 1}"
-            filename = os.path.basename(factura.ruta_pdf)
-            pdf_path = os.path.join(ruta_base, str(year), trimestre, filename)
-
-        if not pdf_path or not os.path.isfile(pdf_path):
+        # ============================
+        # 1) SI HAY CARPETA LOCAL VÁLIDA → usarla
+        # ============================
+        if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
             ruta_fisica, _ = generar_factura_pdf(
                 factura=factura,
                 lineas=factura.lineas,
                 ruta_base=ruta_base,
                 emisor=emisor,
-                config=config
+                config=config,
+                incluir_mensaje_iva=True,
             )
             pdf_path = ruta_fisica
+
+        else:
+            # ============================
+            # 2) Render u otro entorno → PDF TEMPORAL
+            # ============================
+            tmp_dir = tempfile.gettempdir()
+            tmp_file = os.path.join(
+                tmp_dir,
+                f"factura_{factura.id or 'tmp'}.pdf"
+            )
+
+            generar_factura_pdf(
+                factura=factura,
+                lineas=factura.lineas,
+                ruta_base=tmp_dir,
+                emisor=emisor,
+                config=config,
+                incluir_mensaje_iva=True,
+                nombre_personalizado=os.path.basename(tmp_file)
+            )
+
+        pdf_path = tmp_file
 
         if not os.path.isfile(pdf_path):
             raise Exception(f"No se encontró el PDF de la factura: {pdf_path}")
 
-        with open(pdf_path, "rb") as f:
-            part = MIMEApplication(f.read(), _subtype="pdf")
-            filename = f"{factura.numero or 'FACTURA'}.pdf"
-            part.add_header("Content-Disposition", "attachment", filename=filename)
-            msg.attach(part)
 
     # -------- SMTP --------
     server = smtp_connect(config)

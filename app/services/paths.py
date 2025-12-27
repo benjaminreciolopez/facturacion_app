@@ -1,30 +1,34 @@
 from pathlib import Path
 import os
+import tempfile
 
 
 def resolver_ruta_pdf(emisor_ruta: str | None):
     """
-    Devuelve SIEMPRE una ruta válida de escritura.
-    Prioridades:
-    1) Ruta definida por el usuario (si existe y tiene permisos)
-    2) /tmp/facturas (Render / Linux seguro)
-    3) data/pdfs (local seguro proyecto)
+    Devuelve una ruta adecuada según entorno:
+
+    LOCAL:
+        → Usa carpeta configurada si existe y permite escritura
+        → Si no, usa data/pdfs
+
+    RENDER:
+        → NUNCA guardamos PDFs de forma persistente
+        → Solo /tmp del sistema (temporal real)
     """
 
-    posibles = []
+    # ============================
+    # 1) Si estamos en Render → SOLO TEMP
+    # ============================
+    if os.getenv("RENDER") or os.getenv("APP_ENV") == "render":
+        tmp_dir = Path(tempfile.gettempdir()) / "facturas_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        return tmp_dir
 
-    # Ruta configurada por el usuario
+    # ============================
+    # 2) Local – intentar usar carpeta usuario
+    # ============================
     if emisor_ruta:
-        posibles.append(Path(emisor_ruta))
-
-    # Render u otros servicios → /tmp obligatorio
-    if os.getenv("RENDER"):
-        posibles.append(Path("/tmp/facturas"))
-
-    # fallback local seguro
-    posibles.append(Path("data/pdfs"))
-
-    for base in posibles:
+        base = Path(emisor_ruta)
         try:
             base.mkdir(parents=True, exist_ok=True)
 
@@ -34,9 +38,11 @@ def resolver_ruta_pdf(emisor_ruta: str | None):
 
             return base
         except Exception:
-            continue
+            pass
 
-    # Si TODO falla (casi imposible), última red
-    base = Path("/tmp/facturas_final")
+    # ============================
+    # 3) Fallback local seguro
+    # ============================
+    base = Path("data/pdfs")
     base.mkdir(parents=True, exist_ok=True)
     return base

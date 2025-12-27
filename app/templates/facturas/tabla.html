@@ -48,10 +48,12 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
 
   <td class="acciones text-end" style="visibility: hidden">
     <div class="acciones-wrap">
-      {% if f.estado == "BORRADOR" %}
-      <a href="/facturas/{{ f.id }}/edit" class="btn btn-sm btn-primary"
-        >Editar</a
-      >
+      {# ========================== BORRADOR ========================== #} {% if
+      f.estado == "BORRADOR" %}
+
+      <a href="/facturas/{{ f.id }}/edit" class="btn btn-sm btn-primary">
+        Editar
+      </a>
 
       <a
         href="/facturas/{{ f.id }}/delete"
@@ -69,7 +71,8 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
         Validar
       </button>
 
-      {% elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
+      {# ========================== VALIDADA ========================== #} {%
+      elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
       <a
         href="{{ f.ruta_pdf }}"
         class="btn btn-sm btn-outline-secondary"
@@ -77,8 +80,15 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Ver PDF
       </a>
+      {% else %}
+      <a
+        href="/facturas/{{ f.id }}/generar-pdf"
+        class="btn btn-sm btn-outline-secondary"
+      >
+        Generar / Ver PDF
+      </a>
+      {% endif %}
 
-      <!-- Solo botón -->
       <button
         type="button"
         class="btn btn-sm btn-primary ms-1 btn-open-email"
@@ -89,14 +99,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
         Enviar por email
       </button>
 
-      {% else %}
-      <a
-        href="/facturas/{{ f.id }}/generar-pdf"
-        class="btn btn-sm btn-outline-secondary"
-      >
-        Generar PDF
-      </a>
-      {% endif %} {% if not es_rectificativa %}
+      {% if not es_rectificativa %}
       <button
         type="button"
         class="btn btn-sm btn-warning btn-anular"
@@ -104,7 +107,9 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Anular
       </button>
-      {% endif %} {% elif f.estado == "ANULADA" %} {% if f.ruta_pdf %}
+      {% endif %} {# ========================== ANULADA
+      ========================== #} {% elif f.estado == "ANULADA" %} {% if
+      f.ruta_pdf %}
       <a
         href="{{ f.ruta_pdf }}"
         class="btn btn-sm btn-outline-secondary"
@@ -112,6 +117,14 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Ver PDF
       </a>
+      {% else %}
+      <a
+        href="/facturas/{{ f.id }}/generar-pdf"
+        class="btn btn-sm btn-outline-secondary"
+      >
+        Generar / Ver PDF
+      </a>
+      {% endif %}
 
       <button
         type="button"
@@ -122,7 +135,6 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Enviar por email
       </button>
-      {% endif %}
 
       <hr class="my-1" />
 

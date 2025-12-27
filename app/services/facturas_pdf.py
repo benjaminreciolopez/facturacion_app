@@ -29,37 +29,48 @@ def generar_factura_pdf(
 
     en_render = os.getenv("APP_ENV") == "render" or os.getenv("RENDER")
 
+    # ============================================
+    # PREPARACIÓN ENTORNO
+    # ============================================
+    if not factura:
+        raise Exception("Factura no válida")
+
+    fecha = getattr(factura, "fecha", None)
+    if not fecha:
+        raise Exception("La factura no tiene fecha asignada")
+
+    numero = str(getattr(factura, "numero", "SIN_NUMERO")).strip()
+    safe_num = numero.replace("/", "-").replace("\\", "-")
+
+    # ============================================
+    # ENTORNO RENDER → NO DISCO
+    # ============================================
     if en_render:
-        # =============================
-        # RENDER → PDF EN MEMORIA
-        # =============================
         buffer = BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
 
-        # Y SIGUE EXACTAMENTE IGUAL EL RESTO
-        # excepto la parte final de guardado ↓↓↓
+        ruta_pdf = None
+        ruta_url = None
 
+    # ============================================
+    # ENTORNO LOCAL → GUARDAR A DISCO
+    # ============================================
     else:
-        # =============================
-        # LOCAL → GUARDAR EN DISCO
-        # =============================
         if not ruta_base:
             raise Exception("Ruta PDF no configurada en el emisor.")
 
         base_dir = resolver_ruta_pdf(ruta_base)
 
-        fecha = factura.fecha
         año = str(fecha.year)
         trimestre = f"T{((fecha.month - 1) // 3) + 1}"
 
         carpeta_destino = os.path.join(base_dir, año, trimestre)
         os.makedirs(carpeta_destino, exist_ok=True)
 
-        safe_num = str(factura.numero).replace("/", "-")
         nombre_archivo = f"Factura_{safe_num}.pdf"
-
         ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
 
+        c = canvas.Canvas(ruta_pdf, pagesize=A4)
 
 
     # =============================
@@ -415,16 +426,16 @@ def generar_factura_pdf(
 
     c.save()
 
+    # ============================================
+    # RETURN
+    # ============================================
     if en_render:
         buffer.seek(0)
-        # devolvemos bytes del PDF
         return buffer, None
 
-    else:
-        # ruta local normal
-        rel = ruta_pdf.replace(str(base_dir), "").replace("\\", "/")
-        ruta_url = f"/pdf{rel}"
-        return ruta_pdf, ruta_url
+    rel = ruta_pdf.replace(str(base_dir), "").replace("\\", "/")
+    ruta_url = f"/pdf{rel}"
+    return ruta_pdf, ruta_url
 
 def dibujar_qr(c, url: str, x: float, y: float, size_mm: float = 35):
     """

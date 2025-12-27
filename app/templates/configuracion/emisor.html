@@ -324,10 +324,10 @@
   <h3 class="mb-3">Guardado de PDF</h3>
 
   <div class="alert alert-info mb-3">
-    <strong>Modo recomendado:</strong> guardar las facturas PDF directamente en
-    una carpeta de este equipo. Esta configuración se guarda por navegador y
-    por usuario. Si cambias de ordenador o navegador tendrás que elegir la
-    carpeta de nuevo.
+    <strong>Importante:</strong> las facturas PDF se guardarán únicamente en
+    este equipo, no en el servidor. La configuración es local por navegador y
+    por usuario. Si cambias de ordenador o navegador tendrás que elegir de nuevo
+    la carpeta.
   </div>
 
   <!-- PANEL MODO LOCAL -->
@@ -336,7 +336,7 @@
 
     <p class="text-sm text-gray-600 mb-2">
       Esta carpeta se usará para guardar los PDF de las facturas desde este
-      navegador usando la API nativa del navegador (File System Access).
+      navegador utilizando la API nativa del navegador (File System Access).
     </p>
 
     <div class="mb-2">
@@ -356,37 +356,13 @@
 
     <p
       id="pdfFsWarning"
-      class="text-sm text-red-600 mt-3"
+      class="text-sm text-danger mt-3"
       style="display: none"
     >
       Este navegador no soporta la selección directa de carpetas (File System
       Access API). Prueba con la última versión de Chrome o Edge.
     </p>
   </div>
-
-  <!-- OPCIONAL: MODO SERVIDOR (si quieres seguir usando ruta_pdf en el backend) -->
-  <form action="/configuracion/emisor/ruta-pdf" method="post" class="mt-4">
-    <h4 class="mb-2">Ruta en servidor (opcional)</h4>
-    <p class="text-sm text-gray-600 mb-2">
-      Solo se usa si decides que el servidor (Render) siga guardando copias de
-      los PDF. En la mayoría de los casos, puedes dejarlo vacío si solo quieres
-      trabajar con la carpeta local de arriba.
-    </p>
-
-    <label class="form-label">Ruta en servidor</label>
-    <input
-      type="text"
-      id="rutaPdf"
-      name="ruta_pdf"
-      class="form-control w-full"
-      value="{{ emisor.ruta_pdf or '' }}"
-      placeholder="Ejemplo: /data/pdfs (Render) o una ruta local en modo escritorio"
-    />
-
-    <button class="btn btn-primary mt-3">
-      Guardar ruta en servidor
-    </button>
-  </form>
 </div>
 
 <script type="module">
@@ -406,7 +382,6 @@
     return "showDirectoryPicker" in window;
   }
 
-  // Abrir / crear IndexedDB
   function openDb() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, 1);
@@ -423,7 +398,6 @@
     });
   }
 
-  // Guardar handle de carpeta
   async function saveFolderHandle(handle) {
     const db = await openDb();
     return new Promise((resolve, reject) => {
@@ -435,7 +409,6 @@
     });
   }
 
-  // Cargar handle de carpeta (si existe)
   async function loadFolderHandle() {
     const db = await openDb();
     return new Promise((resolve, reject) => {
@@ -459,16 +432,17 @@
 
     warningEl.style.display = "none";
 
-    // Restaurar carpeta si el usuario ya concedió permiso antes
+    // Intentar restaurar carpeta previa
     try {
       const handle = await loadFolderHandle();
       if (handle) {
-        // El permiso puede haberse revocado; comprobamos
         const perm = await handle.queryPermission({ mode: "readwrite" });
+
         if (perm === "granted") {
           folderLabel.textContent = handle.name || "(carpeta seleccionada)";
         } else {
-          folderLabel.textContent = "Permiso revocado. Vuelva a elegir carpeta.";
+          folderLabel.textContent =
+            "Permiso revocado. Vuelva a elegir carpeta.";
         }
       }
     } catch (e) {
@@ -489,15 +463,14 @@
 
         alert(
           "Carpeta guardada en este navegador.\n" +
-            "A partir de ahora, cuando implementemos el guardado de PDF en local, se usará esta carpeta."
+            "Las facturas PDF se guardarán aquí desde este equipo."
         );
       } catch (err) {
-        if (err?.name === "AbortError") {
-          // Usuario canceló el diálogo, no hacemos nada
-          return;
-        }
+        if (err?.name === "AbortError") return;
         console.error("Error seleccionando carpeta:", err);
-        alert("No se pudo seleccionar la carpeta. Revisa los permisos del navegador.");
+        alert(
+          "No se pudo seleccionar la carpeta. Revisa los permisos del navegador."
+        );
       }
     });
   }

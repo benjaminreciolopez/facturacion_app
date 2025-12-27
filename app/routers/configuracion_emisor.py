@@ -388,7 +388,7 @@ async def test_certificado(request: Request,
 
 
 # =========================================================
-# RUTA PDF
+# RUTA PDF - SOLO LOCAL
 # =========================================================
 @router.post("/ruta-pdf")
 def guardar_ruta_pdf(
@@ -396,12 +396,23 @@ def guardar_ruta_pdf(
     ruta_pdf: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    import os
+    from pathlib import Path
+
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
 
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    # 🔥 BLOQUEAR EN PRODUCCIÓN
+    env = os.environ.get("ENV", "development")
+    if env == "production":
+        raise HTTPException(
+            403,
+            "No se permite configurar rutas de PDF en servidor. Solo está permitido en instalación local."
+        )
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -410,33 +421,18 @@ def guardar_ruta_pdf(
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    ruta_pdf = ruta_pdf.strip()
+    ruta_pdf = (ruta_pdf or "").strip()
     if not ruta_pdf:
         raise HTTPException(400, "Debe indicar una ruta válida")
 
-    from pathlib import Path
-    import os
-
-    # =========================
-    # FORZAR RUTA SEGURA EN RENDER
-    # =========================
-    IS_RENDER = os.getenv("RENDER", False)
-
-    if IS_RENDER:
-        # Si el usuario escribe solo "facturas"
-        # se convierte en /data/facturas
-        if not ruta_pdf.startswith("/data"):
-            ruta_pdf = f"/data/{ruta_pdf.lstrip('/')}"
-    
     p = Path(ruta_pdf)
 
+    # Validar accesibilidad
     try:
         p.mkdir(parents=True, exist_ok=True)
-
         test = p / ".test"
         test.write_text("ok")
         test.unlink()
-
     except Exception as e:
         raise HTTPException(
             400,
@@ -448,29 +444,29 @@ def guardar_ruta_pdf(
 
     return RedirectResponse("/configuracion/emisor?tab=pdf", status_code=303)
 
-
 # =========================================================
 # SELECCIONAR CARPETA (SOLO LOCAL)
 # =========================================================
 @router.get("/seleccionar-carpeta", response_class=JSONResponse)
 def seleccionar_carpeta():
+    import os
+
     env = os.environ.get("ENV", "development")
 
-    # Si estamos en producción Render → no se permite seleccionar carpeta
+    # 🔥 BLOQUEAR EN PRODUCCIÓN
     if env == "production":
         return {
             "ok": False,
-            "mensaje": "Esta función solo está disponible en instalación local. En servidor debe configurarse manualmente la ruta."
+            "mensaje": "Esta función solo está disponible en instalación local. En servidor no se pueden gestionar rutas."
         }
 
-    # Si Tk no está disponible (ej. Linux sin entorno gráfico)
+    # Si Tk no está disponible
     if not TK_AVAILABLE:
         return {
             "ok": False,
             "mensaje": "Tu sistema local no soporta selector gráfico. Introduce la ruta manualmente."
         }
 
-    # Si estamos en local y Tk funciona → abrir selector
     try:
         root = Tk()
         root.withdraw()
