@@ -51,7 +51,7 @@ def generar_factura_pdf(
     # =============================
     ancho, alto = A4
     margen_x = 30
-    top_y = alto - 40      #  <<< ASEGURA ESTA LÍNEA
+    top_y = alto - 60     #  <<< ASEGURA ESTA LÍNEA
 
 
     # -----------------------------
@@ -106,14 +106,21 @@ def generar_factura_pdf(
 
     logo_path = getattr(emisor, "logo_path", None)
 
+    logo_fs = None
     if logo_path:
-        posibles_rutas = [
-            logo_path,
-            os.path.join("app", logo_path.lstrip("/")),
-            os.path.join("/data", logo_path.lstrip("/")),
+
+        candidatos = [
+            logo_path,                                      # si ya viene absoluta /data/uploads/1/logo.png
+            f"/data/{logo_path.lstrip('/')}",               # Render
+            f"/data/uploads/{logo_path.lstrip('/')}",       # fallback Render
+            f"app/{logo_path.lstrip('/')}",                 # ejecución local
+            f"app/static/{logo_path.lstrip('/')}",          # ejecución local
         ]
 
-        logo_fs = next((p for p in posibles_rutas if os.path.exists(p)), None)
+        for p in candidatos:
+            if os.path.exists(p):
+                logo_fs = p
+                break
 
         if logo_fs:
             try:
@@ -179,7 +186,7 @@ def generar_factura_pdf(
     # =============================
     c.setFont("Helvetica-Bold", 11)
     x_right = ancho - margen_x
-    y_right = alto - 120
+    y_right = alto - 160
 
     c.drawRightString(x_right, y_right, f"Fecha: {factura.fecha.strftime('%d/%m/%Y')}")
     y_right -= 15
@@ -191,8 +198,8 @@ def generar_factura_pdf(
     # =============================
     cliente = factura.cliente
 
-    y_cliente = y_emisor_inicio - 10
-    x_cliente = ancho / 2 + 120   # mitad derecha
+    y_cliente = alto - 200
+    x_cliente = ancho / 2 + 80   # mitad derecha
 
     c.setFont("Helvetica-Bold", 11)
     c.drawString(x_cliente, y_cliente, "Datos del cliente:")
