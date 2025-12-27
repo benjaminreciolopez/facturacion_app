@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import shutil
 from app.core.templates import templates
+import mimetypes
 
 router = APIRouter(prefix="/storage", tags=["Storage"])
 
@@ -51,16 +52,6 @@ def storage_index(request: Request):
 
     return {"ok": True, "items": items}
 
-@router.get("/download")
-def storage_download(request: Request, path: str):
-    require_admin(request)
-    
-    final = safe_path(path)
-
-    if not final.exists() or not final.is_file():
-        raise HTTPException(404, "Archivo no encontrado")
-
-    return FileResponse(final)
 
 @router.delete("")
 def storage_delete(request: Request, path: str):
@@ -130,3 +121,22 @@ def storage_explorer(
             "breadcrumb": breadcrumb
         }
     )
+
+
+@router.get("/storage/view")
+def storage_view(path: str = Query(...)):
+
+    real_path = Path(path).resolve()
+
+    # Seguridad: impedir salir de /data
+    if BASE_PATH not in real_path.parents and real_path != BASE_PATH:
+        raise HTTPException(403, "Acceso no permitido")
+
+    if not real_path.exists():
+        raise HTTPException(404, "Archivo no encontrado")
+
+    # Detectar MIME
+    mime, _ = mimetypes.guess_type(str(real_path))
+    mime = mime or "application/octet-stream"
+
+    return FileResponse(real_path, media_type=mime)
