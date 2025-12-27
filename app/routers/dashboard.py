@@ -32,6 +32,16 @@ def dashboard(
     # =========================
     empresa_id = get_empresa_id(request)
 
+    if not empresa_id:
+        return templates.TemplateResponse(
+            "dashboard_sin_empresa.html",
+            {
+                "request": request
+            },
+            status_code=200
+        )
+
+
     # =========================
     # NORMALIZAR FILTROS
     # =========================

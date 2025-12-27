@@ -40,7 +40,7 @@ def informes_home(
 
 from fastapi import Request
 from pathlib import Path
-from app.core.auth_empresa import get_empresa_id   # usa tu helper real
+from app.utils.session_empresa import get_empresa_id
 
 
 @router.get("/pdf/{year}/{trimestre}/{filename}")
