@@ -5,28 +5,25 @@ def get_empresa_id(request: Request) -> int:
     print("🟡 get_empresa_id() EJECUTANDO")
     print("🟡 SESSION RAW:", session)
 
+    # 1️⃣ Intentar leer empresa_id directo
     empresa = session.get("empresa_id")
-    print("🟡 empresa_id EN SESSION:", empresa, type(empresa))
-
-    if empresa is not None:
+    if empresa:
         try:
-            empresa_int = int(empresa)
-            print("🟢 DEVUELVO EMPRESA:", empresa_int)
-            return empresa_int
-        except Exception as e:
-            print("🔴 ERROR casteando empresa_id:", e)
+            empresa = int(empresa)
+            print("🟢 EMPRESA DIRECTA:", empresa)
+            return empresa
+        except:
+            pass
 
+    # 2️⃣ Recuperar desde user si existe
     user = session.get("user")
-    print("🟡 USER EN SESSION:", user)
-
     if user:
         empresa_user = user.get("empresa_id")
-        print("🟡 empresa_id EN USER:", empresa_user, type(empresa_user))
-        if empresa_user is not None:
+        if empresa_user:
             empresa_user = int(empresa_user)
             session["empresa_id"] = empresa_user
-            print("🟢 RECUPERADO DESDE USER:", empresa_user)
+            print("🟢 EMPRESA RECUPERADA DESDE USER:", empresa_user)
             return empresa_user
 
-    print("🔴 >>> ERROR FINAL: Empresa NO en sesión")
-    raise HTTPException(401, "Empresa no seleccionada en sesión")
+    print("🔴 NO HAY EMPRESA EN SESIÓN")
+    raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
