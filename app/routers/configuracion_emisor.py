@@ -366,7 +366,8 @@ async def test_certificado(request: Request,
 # RUTA PDF
 # =========================================================
 @router.post("/ruta-pdf")
-def guardar_ruta_pdf(request: Request,
+def guardar_ruta_pdf(
+    request: Request,
     ruta_pdf: str = Form(""),
     session: Session = Depends(get_session),
 ):
@@ -384,7 +385,29 @@ def guardar_ruta_pdf(request: Request,
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    emisor.ruta_pdf = ruta_pdf.strip()
+    ruta_pdf = ruta_pdf.strip()
+
+    if not ruta_pdf:
+        raise HTTPException(400, "Debe indicar una ruta válida")
+
+    from pathlib import Path
+
+    p = Path(ruta_pdf)
+
+    # Intentar crear si no existe
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+
+        test = p / ".test"
+        test.write_text("ok")
+        test.unlink()
+    except Exception as e:
+        raise HTTPException(
+            400,
+            f"No se puede usar esta ruta. El sistema no tiene permisos o no es válida. Detalle: {e}"
+        )
+
+    emisor.ruta_pdf = str(p)
     session.commit()
 
     return RedirectResponse("/configuracion/emisor?tab=pdf", status_code=303)

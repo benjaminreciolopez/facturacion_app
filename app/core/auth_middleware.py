@@ -26,6 +26,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # RUTAS PÚBLICAS
         # ---------------------------------------------------
         rutas_publicas = (
+            "/"
             "/login",
             "/setup",
             "/logout",

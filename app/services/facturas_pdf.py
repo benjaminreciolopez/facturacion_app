@@ -14,8 +14,9 @@ from app.services.verifactu_qr import construir_url_qr
 from app.models.configuracion_sistema import ConfiguracionSistema
 from app.db.session import engine
 from sqlmodel import Session
-
-
+from app.services.paths import resolver_ruta_pdf
+import os
+from io import BytesIO
 
 def generar_factura_pdf(
     factura,
@@ -25,36 +26,41 @@ def generar_factura_pdf(
     config: ConfiguracionSistema | None = None,
     incluir_mensaje_iva=True,
 ):
-    """
-    Genera el PDF de una factura con el diseño:
-    - Título centrado arriba
-    - Logo arriba-izquierda, debajo datos del emisor
-    - Arriba-derecha: fecha y número de factura
-    - Datos del cliente a la derecha, alineados verticalmente con el bloque del emisor
-    - Tabla de líneas debajo
-    - Totales abajo a la derecha
-    - Mensajes legales y de IVA abajo a la izquierda
-    - Mensaje de cuenta bancaria centrado en el pie si existe en el emisor
 
-    NO modifica la BD, solo devuelve la ruta del PDF generado.
-    """
+    en_render = os.getenv("APP_ENV") == "render" or os.getenv("RENDER")
 
-    if not ruta_base:
-        raise Exception("Ruta PDF no configurada en el emisor.")
+    if en_render:
+        # =============================
+        # RENDER → PDF EN MEMORIA
+        # =============================
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
 
-    # =============================
-    # Subcarpetas por año y trimestre
-    # =============================
-    fecha = factura.fecha
-    año = str(fecha.year)
-    trimestre = f"T{((fecha.month - 1) // 3) + 1}"
+        # Y SIGUE EXACTAMENTE IGUAL EL RESTO
+        # excepto la parte final de guardado ↓↓↓
 
-    carpeta_destino = os.path.join(ruta_base, año, trimestre)
-    os.makedirs(carpeta_destino, exist_ok=True)
+    else:
+        # =============================
+        # LOCAL → GUARDAR EN DISCO
+        # =============================
+        if not ruta_base:
+            raise Exception("Ruta PDF no configurada en el emisor.")
 
-    safe_num = str(factura.numero).replace("/", "-")
-    nombre_archivo = f"Factura_{safe_num}.pdf"
-    ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
+        base_dir = resolver_ruta_pdf(ruta_base)
+
+        fecha = factura.fecha
+        año = str(fecha.year)
+        trimestre = f"T{((fecha.month - 1) // 3) + 1}"
+
+        carpeta_destino = os.path.join(base_dir, año, trimestre)
+        os.makedirs(carpeta_destino, exist_ok=True)
+
+        safe_num = str(factura.numero).replace("/", "-")
+        nombre_archivo = f"Factura_{safe_num}.pdf"
+
+        ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
+
+
 
     # =============================
     # Crear PDF
@@ -409,12 +415,16 @@ def generar_factura_pdf(
 
     c.save()
 
-    # Construcción de la URL pública
-    # ruta_pdf = "/base/año/T1/Factura_XXX.pdf"
-    rel = ruta_pdf.replace(ruta_base, "").replace("\\", "/")
-    ruta_url = f"/pdf{rel}"
+    if en_render:
+        buffer.seek(0)
+        # devolvemos bytes del PDF
+        return buffer, None
 
-    return ruta_pdf, ruta_url
+    else:
+        # ruta local normal
+        rel = ruta_pdf.replace(str(base_dir), "").replace("\\", "/")
+        ruta_url = f"/pdf{rel}"
+        return ruta_pdf, ruta_url
 
 def dibujar_qr(c, url: str, x: float, y: float, size_mm: float = 35):
     """
