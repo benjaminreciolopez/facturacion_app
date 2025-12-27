@@ -5,14 +5,14 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
 
 <tr
   data-factura='{{ {
-    "id": f.id,
-    "numero": f.numero,
-    "cliente": (f.cliente.nombre if f.cliente else "-"),
-    "fecha": (f.fecha.isoformat() if f.fecha else None),
-    "total": f.total,
-    "estado": f.estado,
-    "ruta_pdf": f.ruta_pdf
-  } | tojson | safe }}'
+      "id": f.id,
+      "numero": f.numero,
+      "cliente": (f.cliente.nombre if f.cliente else "-"),
+      "fecha": (f.fecha.isoformat() if f.fecha else None),
+      "total": f.total,
+      "estado": f.estado,
+      "ruta_pdf": f.ruta_pdf
+    } | tojson | safe }}'
 >
   <td>{{ f.numero or "Borrador" }}</td>
 
@@ -48,8 +48,8 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
 
   <td class="acciones text-end" style="visibility: hidden">
     <div class="acciones-wrap">
-      {# ========================== BORRADOR ========================== #} {% if
-      f.estado == "BORRADOR" %}
+      {# ========================= ESTADO: BORRADOR ==========================
+      #} {% if f.estado == "BORRADOR" %}
 
       <a href="/facturas/{{ f.id }}/edit" class="btn btn-sm btn-primary">
         Editar
@@ -71,8 +71,9 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
         Validar
       </button>
 
-      {# ========================== VALIDADA ========================== #} {%
-      elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
+      {# ========================= ESTADO: VALIDADA ==========================
+      #} {% elif f.estado == "VALIDADA" %} {# PDF: si ya existe ruta_pdf → Ver
+      PDF, si no → Generar / Ver PDF #} {% if f.ruta_pdf %}
       <a
         href="{{ f.ruta_pdf }}"
         class="btn btn-sm btn-outline-secondary"
@@ -84,6 +85,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       <a
         href="/facturas/{{ f.id }}/generar-pdf"
         class="btn btn-sm btn-outline-secondary"
+        target="_blank"
       >
         Generar / Ver PDF
       </a>
@@ -107,9 +109,9 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Anular
       </button>
-      {% endif %} {# ========================== ANULADA
-      ========================== #} {% elif f.estado == "ANULADA" %} {% if
-      f.ruta_pdf %}
+      {% endif %} {# ========================= ESTADO: ANULADA
+      ========================== #} {% elif f.estado == "ANULADA" %} {# Igual
+      comportamiento PDF que VALIDADA #} {% if f.ruta_pdf %}
       <a
         href="{{ f.ruta_pdf }}"
         class="btn btn-sm btn-outline-secondary"
@@ -121,6 +123,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       <a
         href="/facturas/{{ f.id }}/generar-pdf"
         class="btn btn-sm btn-outline-secondary"
+        target="_blank"
       >
         Generar / Ver PDF
       </a>
