@@ -8,10 +8,11 @@ def resolver_ruta_pdf_factura(factura, emisor):
     Devuelve:
       base_dir → carpeta donde se guarda
       pdf_path → ruta final del archivo
-    Funciona en:
-      - Local
-      - Render
-      - Instalaciones antiguas
+
+    Reglas:
+      ✔ Siempre guarda en /data cuando está en servidor
+      ✔ Usa solo nombre lógico (ruta_facturas)
+      ✔ Compatible con instalaciones antiguas (ruta_pdf local)
     """
 
     if not factura or not factura.fecha:
@@ -21,31 +22,37 @@ def resolver_ruta_pdf_factura(factura, emisor):
     quarter = (factura.fecha.month - 1) // 3 + 1
 
     # =====================================================
-    # 1️⃣ DETERMINAR BASE
+    # 1️⃣ NUEVO SISTEMA → NOMBRE LÓGICO
     # =====================================================
-    # Prioridad real del sistema
-    ruta_base = (
-        (getattr(emisor, "ruta_pdf", "") or "").strip()
-        or (getattr(emisor, "ruta_facturas", "") or "").strip()
-    )
+    nombre_carpeta = (getattr(emisor, "ruta_facturas", "") or "").strip()
 
-    # =========================
-    # MODO RENDER / SERVIDOR
-    # =========================
-    # Si no hay ruta definida → usar /data
-    if not ruta_base:
-        ruta_base = "/data/facturas"
+    if nombre_carpeta:
+        # Seguridad: limpiar posibles rutas absolutas antiguas
+        nombre_carpeta = nombre_carpeta.replace("\\", "/")
+        nombre_carpeta = nombre_carpeta.split("/")[-1]   # solo nombre puro
 
-    base_dir = Path(ruta_base).resolve()
+        base_root = Path("/data") / nombre_carpeta
+
+    else:
+        # =====================================================
+        # 2️⃣ COMPATIBILIDAD SISTEMAS ANTIGUOS
+        # Solo válido en local. En Render ignoramos rutas del host.
+        # =====================================================
+        legacy = (getattr(emisor, "ruta_pdf", "") or "").strip()
+
+        if legacy and not os.getenv("RENDER"):
+            base_root = Path(legacy)
+        else:
+            base_root = Path("/data/facturas")
 
     # =====================================================
-    # 2️⃣ ESTRUCTURA: /AÑO/T#
+    # 3️⃣ ESTRUCTURA /AÑO/T#
     # =====================================================
-    destino = base_dir / str(year) / f"T{quarter}"
+    destino = base_root / str(year) / f"T{quarter}"
     destino.mkdir(parents=True, exist_ok=True)
 
     # =====================================================
-    # 3️⃣ NOMBRE ARCHIVO
+    # 4️⃣ NOMBRE ARCHIVO
     # =====================================================
     numero = str(factura.numero or "SIN_NUMERO").replace("/", "-")
     filename = f"Factura_{numero}.pdf"

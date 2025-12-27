@@ -324,158 +324,52 @@
   <h3 class="mb-3">Guardado de PDF</h3>
 
   <div class="alert alert-info mb-3">
-    <strong>Importante:</strong> las facturas PDF se guardarán únicamente en
-    este equipo, no en el servidor. La configuración es local por navegador y
-    por usuario. Si cambias de ordenador o navegador tendrás que elegir de nuevo
-    la carpeta.
+    <strong>Importante:</strong>
+    Los PDF se guardarán en el almacenamiento interno de la aplicación.
+    Usted solo debe indicar el nombre de la carpeta raíz.
   </div>
 
-  <!-- PANEL MODO LOCAL -->
   <div class="p-3 mb-3 border rounded bg-white shadow-sm">
-    <h4 class="mb-2">Carpeta local para los PDF</h4>
+    <h4 class="mb-2">Carpeta raíz de facturas</h4>
 
-    <p class="text-sm text-gray-600 mb-2">
-      Esta carpeta se usará para guardar los PDF de las facturas desde este
-      navegador utilizando la API nativa del navegador (File System Access).
+    <p class="text-muted">
+      El sistema guardará automáticamente las facturas en:
+      <br>
+      <code>/data/&lt;carpeta&gt;/AÑO/T&lt;Trimestre&gt;/Factura_XXXX.pdf</code>
+      <br><br>
+      Ejemplo:
+      <code>/data/FACTURAS_EMPRESA/2025/T4/Factura_FRA-2025-0001.pdf</code>
     </p>
 
-    <div class="mb-2">
-      <strong>Carpeta seleccionada:</strong>
-      <span id="pdfFolderLabel" class="ms-1">
-        Ninguna carpeta seleccionada
-      </span>
-    </div>
+    <form method="post" action="/configuracion/emisor/ruta-pdf">
+      <div class="mb-3">
+        <label class="form-label fw-bold">Nombre de la carpeta</label>
 
-    <button
-      type="button"
-      id="btnElegirCarpetaLocal"
-      class="btn btn-secondary mt-2"
-    >
-      Elegir carpeta en este equipo
-    </button>
+        <input
+          type="text"
+          name="ruta_pdf"
+          class="form-control"
+          placeholder="Ejemplo: FACTURAS_EMPRESA"
+          value="{{ emisor.ruta_facturas or '' }}"
+          required
+        >
 
-    <p
-      id="pdfFsWarning"
-      class="text-sm text-danger mt-3"
-      style="display: none"
-    >
-      Este navegador no soporta la selección directa de carpetas (File System
-      Access API). Prueba con la última versión de Chrome o Edge.
-    </p>
+        <div class="form-text">
+          Solo letras, números, espacios, guiones y guión bajo.
+          No introduzca rutas tipo C:\ ni /home ni /Users.
+        </div>
+      </div>
+
+      <button class="btn btn-primary">
+        Guardar configuración
+      </button>
+    </form>
   </div>
 </div>
 
-<script type="module">
-  // ============================
-  // File System Access API (local)
-  // ============================
-
-  const folderLabel = document.getElementById("pdfFolderLabel");
-  const chooseBtn = document.getElementById("btnElegirCarpetaLocal");
-  const warningEl = document.getElementById("pdfFsWarning");
-
-  const DB_NAME = "facturacion_app_pdf";
-  const STORE_NAME = "pdf_config";
-  const KEY = "pdfFolder";
-
-  function supportsFileSystemAccess() {
-    return "showDirectoryPicker" in window;
-  }
-
-  function openDb() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 1);
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME);
-        }
-      };
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async function saveFolderHandle(handle) {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const store = tx.objectStore(STORE_NAME);
-      store.put(handle, KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  }
-
-  async function loadFolderHandle() {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(KEY);
-
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  async function initPdfFolderUi() {
-    if (!chooseBtn || !folderLabel) return;
-
-    if (!supportsFileSystemAccess()) {
-      warningEl.style.display = "block";
-      chooseBtn.disabled = true;
-      return;
-    }
-
-    warningEl.style.display = "none";
-
-    // Intentar restaurar carpeta previa
-    try {
-      const handle = await loadFolderHandle();
-      if (handle) {
-        const perm = await handle.queryPermission({ mode: "readwrite" });
-
-        if (perm === "granted") {
-          folderLabel.textContent = handle.name || "(carpeta seleccionada)";
-        } else {
-          folderLabel.textContent =
-            "Permiso revocado. Vuelva a elegir carpeta.";
-        }
-      }
-    } catch (e) {
-      console.warn("No se pudo recuperar la carpeta PDF:", e);
-    }
-
-    chooseBtn.addEventListener("click", async () => {
-      try {
-        const handle = await window.showDirectoryPicker({
-          id: "facturacion-pdfs",
-          mode: "readwrite",
-        });
-
-        await saveFolderHandle(handle);
-
-        folderLabel.textContent =
-          handle.name || "Carpeta seleccionada correctamente";
-
-        alert(
-          "Carpeta guardada en este navegador.\n" +
-            "Las facturas PDF se guardarán aquí desde este equipo."
-        );
-      } catch (err) {
-        if (err?.name === "AbortError") return;
-        console.error("Error seleccionando carpeta:", err);
-        alert(
-          "No se pudo seleccionar la carpeta. Revisa los permisos del navegador."
-        );
-      }
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", initPdfFolderUi);
+<script>
+  // Tab 100% estático ahora. No necesitamos File System Access.
+  console.log("Tab PDF configurado con carpeta lógica en /data");
 </script>
 
     <!-- ===================================================== -->

@@ -388,7 +388,7 @@ async def test_certificado(request: Request,
 
 
 # =========================================================
-# RUTA PDF - SOLO LOCAL
+# CONFIGURAR CARPETA BASE PARA PDF (NOMBRE LÓGICO)
 # =========================================================
 @router.post("/ruta-pdf")
 def guardar_ruta_pdf(
@@ -396,23 +396,9 @@ def guardar_ruta_pdf(
     ruta_pdf: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    import os
-    from pathlib import Path
-
-    if is_mobile(request):
-        raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
-
     empresa_id = request.session.get("empresa_id")
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
-
-    # 🔥 BLOQUEAR EN PRODUCCIÓN
-    env = os.environ.get("ENV", "development")
-    if env == "production":
-        raise HTTPException(
-            403,
-            "No se permite configurar rutas de PDF en servidor. Solo está permitido en instalación local."
-        )
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -422,67 +408,40 @@ def guardar_ruta_pdf(
         raise HTTPException(404, "Emisor no encontrado")
 
     ruta_pdf = (ruta_pdf or "").strip()
+
     if not ruta_pdf:
-        raise HTTPException(400, "Debe indicar una ruta válida")
+        raise HTTPException(400, "Debe indicar un nombre de carpeta")
 
-    p = Path(ruta_pdf)
+    # ================================
+    # VALIDACIONES
+    # ================================
+    # Nada de rutas tipo C:\ ni /var ni ../../
+    if "/" in ruta_pdf or "\\" in ruta_pdf:
+        raise HTTPException(400, "Solo debe indicar el nombre de la carpeta, no una ruta")
 
-    # Validar accesibilidad
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-        test = p / ".test"
-        test.write_text("ok")
-        test.unlink()
-    except Exception as e:
+    if ".." in ruta_pdf:
+        raise HTTPException(400, "Nombre inválido")
+
+    if len(ruta_pdf) < 3:
+        raise HTTPException(400, "El nombre de la carpeta es demasiado corto")
+
+    # Permitimos letras, números, espacios, guiones y guion bajo
+    import re
+    if not re.match(r"^[A-Za-z0-9 _-]+$", ruta_pdf):
         raise HTTPException(
             400,
-            f"No se puede usar esta ruta. El sistema no tiene permisos o no es válida. Detalle: {e}"
+            "El nombre solo puede contener letras, números, espacios, guiones y guiones bajos"
         )
 
-    emisor.ruta_pdf = str(p)
+    # ================================
+    # GUARDAR EN BD
+    # ================================
+    # USAMOS ruta_facturas como carpeta lógica definitiva
+    emisor.ruta_facturas = ruta_pdf
+    session.add(emisor)
     session.commit()
 
     return RedirectResponse("/configuracion/emisor?tab=pdf", status_code=303)
-
-# =========================================================
-# SELECCIONAR CARPETA (SOLO LOCAL)
-# =========================================================
-@router.get("/seleccionar-carpeta", response_class=JSONResponse)
-def seleccionar_carpeta():
-    import os
-
-    env = os.environ.get("ENV", "development")
-
-    # 🔥 BLOQUEAR EN PRODUCCIÓN
-    if env == "production":
-        return {
-            "ok": False,
-            "mensaje": "Esta función solo está disponible en instalación local. En servidor no se pueden gestionar rutas."
-        }
-
-    # Si Tk no está disponible
-    if not TK_AVAILABLE:
-        return {
-            "ok": False,
-            "mensaje": "Tu sistema local no soporta selector gráfico. Introduce la ruta manualmente."
-        }
-
-    try:
-        root = Tk()
-        root.withdraw()
-        carpeta = askdirectory()
-        root.destroy()
-
-        return {
-            "ok": True,
-            "carpeta": carpeta or ""
-        }
-
-    except Exception as e:
-        return {
-            "ok": False,
-            "mensaje": f"No fue posible abrir el selector: {e}"
-        }
 
 # =========================================================
 # NUMERACIÓN
