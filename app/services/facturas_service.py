@@ -41,12 +41,12 @@ def generar_numero_factura(session: Session, fecha: date, empresa_id: int) -> st
     numero = re.sub(r"\{NUM:(0\d+)d\}", repl_num, plantilla)
 
     # Reemplazo simple {NUMERO}
-    numero = numero.replace("{NUMERO}", str(correlativo))
+    numero = numero.replace("{NUM}", str(correlativo))
 
     # Reemplazo variables restantes
     numero = numero.replace("{SERIE}", emisor.serie_facturacion or "")
-    numero = numero.replace("{AÑO}", str(year))
-    numero = numero.replace("{MES}", f"{fecha.month:02d}")
+    numero = numero.replace("{YEAR}", str(year))
+    numero = numero.replace("{MONTH}", f"{fecha.month:02d}")
 
     # Incrementar correlativo
     emisor.siguiente_numero + 1

@@ -862,7 +862,11 @@ def factura_next_number(request: Request,
 
 
 @router.get("/{factura_id}/generar-pdf", response_class=HTMLResponse)
-def factura_generar_pdf(factura_id: int, request: Request, session: Session = Depends(get_session)):
+def factura_generar_pdf(
+    factura_id: int,
+    request: Request,
+    session: Session = Depends(get_session)
+):
 
     empresa_id = get_empresa_id(request)
     if not empresa_id:
@@ -879,10 +883,6 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     # ============================
     # 1) Emisor + Config
     # ============================
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
-
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
     ).first()
@@ -892,6 +892,9 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
 
     ruta_base = (emisor.ruta_pdf or "").strip()
 
+    if not ruta_base or not os.path.isdir(ruta_base):
+        raise HTTPException(400, "La carpeta de PDFs configurada no es válida")
+
     config = session.exec(
         select(ConfiguracionSistema).where(
             ConfiguracionSistema.empresa_id == empresa_id
@@ -899,18 +902,18 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     ).first()
 
     # ============================
-    # 2) Generar PDF
+    # 2) Generar PDF LOCAL
     # ============================
     try:
-        pdf_output, filename = generar_factura_pdf(
+        pdf_path, filename = generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=ruta_base,      # LOCAL → fichero | RENDER → ignorado
+            ruta_base=ruta_base,     # SIEMPRE ruta local
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
         )
-    
+
     except Exception as e:
         return templates.TemplateResponse(
             "error.html",
@@ -922,26 +925,17 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
         )
 
     # ============================
-    # 3) Respuesta según entorno
+    # 3) Guardar ruta en factura
     # ============================
-    # Caso A → estamos en local y se guardó fichero físico
-    if isinstance(pdf_output, str) and os.path.isfile(pdf_output):
-        factura.ruta_pdf = pdf_output
+    if isinstance(pdf_path, str) and os.path.isfile(pdf_path):
+        factura.ruta_pdf = pdf_path
         session.add(factura)
         session.commit()
 
-    # Caso B → Render u otro entorno: BytesIO → Descargar al usuario
-    from fastapi.responses import StreamingResponse
-
-    pdf_output.seek(0)
-
-    return StreamingResponse(
-        pdf_output,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"'
-        }
-    )
+    # ============================
+    # 4) Volver a listado
+    # ============================
+    return RedirectResponse("/facturas", status_code=303)
 
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
