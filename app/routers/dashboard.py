@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, Query, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
 from sqlalchemy import extract, func, or_
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 import os
 
 from app.db.session import get_session
@@ -12,6 +12,7 @@ from app.models.emisor import Emisor
 from app.models.iva import IVA
 from app.models.configuracion_sistema import ConfiguracionSistema
 from app.core.templates import templates
+from app.utils.session_empresa import get_empresa_id
 
 router = APIRouter(tags=["Dashboard"])
 
@@ -29,9 +30,7 @@ def dashboard(
     # =========================
     # EMPRESA ACTUAL
     # =========================
-    empresa_id = request.session.get("empresa_id")
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+    empresa_id = get_empresa_id(request)
 
     # =========================
     # NORMALIZAR FILTROS

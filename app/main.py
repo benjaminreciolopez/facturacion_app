@@ -161,6 +161,9 @@ async def root():
 async def offline(request: Request):
     return templates.TemplateResponse("offline.html", {"request": request})
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_redirect():
+    return RedirectResponse("/static/favicon.ico")
 
 # ============================================================
 # CONTEXTO GLOBAL JINJA
