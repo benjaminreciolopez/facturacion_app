@@ -182,6 +182,8 @@ def factura_form(
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     clientes = session.exec(
         select(Cliente)
@@ -226,6 +228,8 @@ def factura_create(
     db: Session = Depends(get_session),
 ):
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     if not empresa_id:
         raise HTTPException(
@@ -302,6 +306,8 @@ def factura_edit(
     session: Session = Depends(get_session),
 ):
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -324,6 +330,8 @@ def factura_edit(
     ]
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     clientes = session.exec(
         select(Cliente)
@@ -373,6 +381,8 @@ def factura_edit_save(request: Request,
         fecha = date.today()
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -451,6 +461,8 @@ def factura_preview_validacion(request: Request,
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -473,6 +485,8 @@ def factura_preview_validacion(request: Request,
 
     # Preview numeración
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -506,6 +520,8 @@ def validar_factura(
     request: Request = None,
 ):
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -573,6 +589,8 @@ def validar_factura(
 
     # 2) Comprobar ruta PDF pero NO bloquear si no existe
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -657,6 +675,8 @@ def validar_factura(
         raise
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -747,6 +767,8 @@ def validar_factura(
 def factura_min_date(request: Request, session: Session = Depends(get_session)):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     f = session.exec(
         select(Factura)
@@ -775,6 +797,8 @@ def factura_next_number(request: Request,
     year = fecha.year
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -831,6 +855,8 @@ def factura_next_number(request: Request,
 def factura_generar_pdf(factura_id: int, request: Request, session: Session = Depends(get_session)):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -842,6 +868,8 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
 
     # 1) Verificar ruta del emisor
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -884,6 +912,8 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
             }
         )
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -932,6 +962,8 @@ def factura_delete(request: Request,
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -967,6 +999,8 @@ def factura_anular(
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1004,6 +1038,8 @@ def factura_anular(
     # ============================
     # Ruta y textos del emisor
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1101,6 +1137,8 @@ def factura_anular(
     session.commit()
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -1149,6 +1187,8 @@ def factura_rectificar(
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1186,6 +1226,8 @@ def factura_rectificar(
     # ============================
     # 2) Comprobar ruta PDF pero NO bloquear si no existe
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1264,6 +1306,8 @@ def factura_rectificar(
     rect.total = round(subtotal + iva_total, 2)
     session.commit()
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -1312,12 +1356,13 @@ def factura_pre_validar(request: Request,
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
-    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1357,6 +1402,8 @@ async def enviar_factura_email(request: Request,
 ):
 
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1399,6 +1446,8 @@ async def enviar_factura_email(request: Request,
     # PREPARAR TODO ANTES DEL HILO
     # =========================
     empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1407,7 +1456,6 @@ async def enviar_factura_email(request: Request,
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
 
-    empresa_id = get_empresa_id(request)
 
     config = session.exec(
         select(ConfiguracionSistema).where(
