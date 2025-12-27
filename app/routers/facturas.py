@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query, Body, BackgroundTasks
+from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query, Body
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select, delete
 from datetime import date
 import os
 import json
 import re
+from pathlib import Path
 from app.models.configuracion_sistema import ConfiguracionSistema
 from app.db.session import get_session
 from app.core.templates import templates
@@ -29,7 +30,7 @@ from app.constants.auditoria import RES_OK, RES_ERROR
 from app.services.verifactu_envio import enviar_a_aeat
 from app.services.email_service import run_async, enviar_email_factura_construido
 from app.utils.session_empresa import get_empresa_id
-
+from app.services.resolver_ruta import resolver_ruta_pdf_factura
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
 
 # ========= FACTURAS =========
@@ -600,7 +601,7 @@ def validar_factura(
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
 
-    ruta_base = (emisor.ruta_pdf or "").strip()
+    ruta_base = None
 
     # ============================
     # 3) Comprobar orden cronológico
@@ -890,23 +891,64 @@ def factura_generar_pdf(
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
 
-    ruta_base = (emisor.ruta_pdf or "").strip()
-
-
     config = session.exec(
         select(ConfiguracionSistema).where(
             ConfiguracionSistema.empresa_id == empresa_id
         )
     ).first()
 
-    # ============================
-    # 2) Generar PDF LOCAL
-    # ============================
+    # =====================================================
+    # 2) VALIDAR CONFIGURACIÓN DE CARPETA BASE PDF
+    # =====================================================
+    carpeta_nombre = (emisor.carpeta_pdf_nombre or "").strip()
+
+    if not carpeta_nombre:
+        raise HTTPException(
+            400,
+            "Debe configurar la carpeta base de facturas PDF en Configuración del Emisor."
+        )
+
+    year = factura.fecha.year
+    quarter = (factura.fecha.month - 1) // 3 + 1
+
+    # =====================================================
+    # 3) BLOQUEO DE CARPETA POR EJERCICIO
+    # =====================================================
+    if (
+        emisor.pdf_carpeta_bloqueada 
+        and emisor.pdf_anio_bloqueado == year 
+        and emisor.pdf_nombre_bloqueado != carpeta_nombre
+    ):
+        raise HTTPException(
+            400,
+            "La carpeta de almacenamiento PDF ya está bloqueada para este ejercicio y no puede cambiarse."
+        )
+
+    # Si es la primera vez del año → BLOQUEAMOS
+    if not emisor.pdf_carpeta_bloqueada or emisor.pdf_anio_bloqueado != year:
+        emisor.pdf_carpeta_bloqueada = True
+        emisor.pdf_anio_bloqueado = year
+        emisor.pdf_nombre_bloqueado = carpeta_nombre
+        session.add(emisor)
+        session.commit()
+
+    # =====================================================
+    # 4) RESOLVER RUTA REAL
+    # =====================================================
+    base_dir = Path("/data") / carpeta_nombre / str(year) / f"T{quarter}"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = f"Factura_{factura.numero}.pdf"
+    ruta_fisica = base_dir / filename
+
+    # =====================================================
+    # 5) GENERAR PDF REAL USANDO TU SERVICIO
+    # =====================================================
     try:
-        pdf_output, filename = generar_factura_pdf(
+        generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=ruta_base,     # SIEMPRE ruta local
+            ruta_base=str(base_dir),
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,
@@ -922,30 +964,15 @@ def factura_generar_pdf(
             }
         )
 
-    # =========================================
-    # MODO LOCAL → devuelve archivo físico
-    # =========================================
-    if isinstance(pdf_output, str) and os.path.isfile(pdf_output):
-        factura.ruta_pdf = pdf_output
-        session.add(factura)
-        session.commit()
+    # =====================================================
+    # 6) GUARDAR RUTA ACCESIBLE
+    # =====================================================
+    factura.ruta_pdf = f"/storage/view?path={ruta_fisica}"
+    session.add(factura)
+    session.commit()
 
-        return RedirectResponse("/facturas", status_code=303)
-
-    # =========================================
-    # MODO RENDER → PDF EN MEMORIA
-    # =========================================
-    from fastapi.responses import StreamingResponse
-
-    pdf_output.seek(0)
-
-    return StreamingResponse(
-        pdf_output,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"'
-        }
-    )
+    # Abrir directamente
+    return RedirectResponse(factura.ruta_pdf, status_code=303)
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()
@@ -996,88 +1023,60 @@ def factura_anular(
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     factura = session.get(Factura, factura_id)
+
     if not factura or factura.empresa_id != empresa_id:
-        raise HTTPException(404, "Factura no encontrada")
-    if not factura:
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura_id,
-            accion="ANULAR",
-            resultado="ERROR",
-            nivel_evento="ERROR",
-            motivo="Factura no encontrada",
-            ip=get_ip(request),
-            user_agent=get_user_agent(request),
-        )
         return {"ok": False, "error": "Factura no encontrada."}
-    
+
     if factura.estado != "VALIDADA":
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura_id,
-            accion="ANULAR",
-            resultado="BLOQUEADO",
-            nivel_evento="FISCAL",
-            motivo="Factura no válida para anulación",
-            ip=get_ip(request),
-            user_agent=get_user_agent(request),
-        )
-        return {"ok": False, "error": "Solo se pueden anular facturas validadas."}    
+        return {"ok": False, "error": "Solo se pueden anular facturas validadas."}
 
     # ============================
-    # 1) Verificar ruta PDFs
+    # Emisor + Config
     # ============================
-    # Ruta y textos del emisor
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
-
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
     ).first()
 
     if not emisor:
-        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
-    ruta_base = (emisor.ruta_pdf or "").strip()
+        raise HTTPException(400, "No hay configuración del emisor")
 
-    
-
-    # ========= MENSAJE LEGAL RECTIFICATIVA =========
-    texto_rect = (emisor.texto_rectificativa or "").strip()
-
-    if not texto_rect:
-        texto_rect = (
-            "Factura rectificativa emitida conforme al Art. 89 de la Ley 37/1992 del IVA. "
-            f"Esta rectificación afecta a la factura original Nº {factura.numero} de fecha "
-            f"{factura.fecha.strftime('%d/%m/%Y')}, dejando sin efecto sus importes."
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
         )
+    ).first()
 
     # ============================
-    # 2) Marcar ORIGINAL como ANULADA
+    # Marcar ORIGINAL anulada
     # ============================
     factura.estado = "ANULADA"
     session.add(factura)
 
     # ============================
-    # 2. Verificar si ya existe rectificativa
+    # Evitar duplicar rectificativa
     # ============================
     numero_rect = f"{factura.numero}R"
-    
 
     existe = session.exec(
         select(Factura)
-            .where(Factura.numero == numero_rect)
-            .where(Factura.empresa_id == empresa_id)
+        .where(Factura.numero == numero_rect)
+        .where(Factura.empresa_id == empresa_id)
     ).first()
 
     if existe:
-        return {"ok": False, "error": "Ya existe una rectificativa para esta factura."}
+        return {"ok": False, "error": "Ya existe rectificativa para esta factura."}
 
     # ============================
-    # 3) Crear RECTIFICATIVA
+    # Crear RECTIFICATIVA
     # ============================
+    texto_rect = (emisor.texto_rectificativa or "").strip()
+    if not texto_rect:
+        texto_rect = (
+            "Factura rectificativa emitida conforme al Art. 89 de la Ley 37/1992 del IVA. "
+            f"Rectifica la factura Nº {factura.numero} de fecha "
+            f"{factura.fecha.strftime('%d/%m/%Y')}."
+        )
+
     rect = Factura(
         empresa_id=factura.empresa_id,
         cliente_id=factura.cliente_id,
@@ -1088,40 +1087,39 @@ def factura_anular(
         iva_total=0,
         total=0,
         iva_global=factura.iva_global,
+        mensaje_iva=texto_rect
     )
+
     session.add(rect)
     session.flush()
 
-    rect.mensaje_iva = texto_rect
-
     # ============================
-    # 4) Crear líneas negativas
+    # Líneas negativas
     # ============================
-    iva_factura = factura.iva_global or 0
+    iva = factura.iva_global or 0
     originales = session.exec(
         select(LineaFactura).where(LineaFactura.factura_id == factura.id)
     ).all()
 
     subtotal = iva_total = 0
-    lineas_rect = []
 
     for l in originales:
         base = l.cantidad * l.precio_unitario
-        iva_calc = base * iva_factura / 100
+        cuota = base * iva / 100
 
-        nueva = LineaFactura(
-            factura_id=rect.id,
-            descripcion=f"(Rectific.) {l.descripcion}",
-            cantidad=-l.cantidad,
-            precio_unitario=l.precio_unitario,
-            total=-(base + iva_calc),
-            concepto_id=l.concepto_id
+        session.add(
+            LineaFactura(
+                factura_id=rect.id,
+                descripcion=f"(Rectific.) {l.descripcion}",
+                cantidad=-l.cantidad,
+                precio_unitario=l.precio_unitario,
+                total=-(base + cuota),
+                concepto_id=l.concepto_id
+            )
         )
 
         subtotal += -base
-        iva_total += -iva_calc
-        session.add(nueva)
-        lineas_rect.append(nueva)
+        iva_total += -cuota
 
     rect.subtotal = round(subtotal, 2)
     rect.iva_total = round(iva_total, 2)
@@ -1129,44 +1127,27 @@ def factura_anular(
 
     session.commit()
 
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+    # ============================
+    # PDF + ruta persistente
+    # ============================
+    try:
+        base_dir, ruta_pdf = resolver_ruta_pdf_factura(rect, emisor)
 
-    config = session.exec(
-        select(ConfiguracionSistema).where(
-            ConfiguracionSistema.empresa_id == empresa_id
+        generar_factura_pdf(
+            factura=rect,
+            lineas=session.exec(select(LineaFactura).where(LineaFactura.factura_id == rect.id)).all(),
+            ruta_base=str(base_dir),
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
         )
-    ).first()
 
-    # ============================
-    # 5) GENERAR PDF (solo local si procede)
-    # ============================
-    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        try:
-            generar_factura_pdf(
-                factura=rect,
-                lineas=lineas_rect,
-                ruta_base=ruta_base,
-                emisor=emisor,
-                config=config,
-                incluir_mensaje_iva=True,
-            )
-        except Exception as e:
-            # No rompemos anulación fiscal si falla el PDF
-            pass
+        rect.ruta_pdf = f"/storage/view?path={ruta_pdf}"
+        session.add(rect)
+        session.commit()
 
-    auditar(
-        session,
-        entidad="FACTURA",
-        entidad_id=factura.id,
-        accion="ANULAR",
-        resultado="OK",
-        nivel_evento="FISCAL",
-        ip=get_ip(request) if request else None,
-        user_agent=get_user_agent(request) if request else None,
-    )
-
+    except Exception:
+        pass  # jamás romper fiscalidad
 
     return {"ok": True, "rectificativa_id": rect.id, "numero": rect.numero}
 
@@ -1179,126 +1160,22 @@ def factura_rectificar(
 
     empresa_id = get_empresa_id(request)
     if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+        raise HTTPException(401)
 
     factura = session.get(Factura, factura_id)
+
     if not factura or factura.empresa_id != empresa_id:
-        raise HTTPException(404, "Factura no encontrada")
-    if not factura:
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura_id,
-            accion="RECTIFICAR",
-            resultado="ERROR",
-            nivel_evento="ERROR",
-            motivo="Factura no encontrada",
-            ip=get_ip(request),
-            user_agent=get_user_agent(request),
-        )
         return {"ok": False, "error": "Factura no encontrada."}
 
     if factura.estado != "VALIDADA":
-        auditar(
-            session,
-            entidad="FACTURA",
-            entidad_id=factura_id,
-            accion="RECTIFICAR",
-            resultado="BLOQUEADO",
-            nivel_evento="FISCAL",
-            motivo="Factura no válida para rectificación",
-            ip=get_ip(request),
-            user_agent=get_user_agent(request),
-        )
         return {"ok": False, "error": "Solo se pueden rectificar facturas validadas."}
-    
-    # ============================
-    # Ruta y textos del emisor
-    # ============================
-    # 2) Comprobar ruta PDF pero NO bloquear si no existe
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
     ).first()
 
     if not emisor:
-        raise HTTPException(400, "No hay configuración del emisor para esta empresa")
-    ruta_base = (emisor.ruta_pdf or "").strip()
-
-    usar_ruta_servidor = False
-
-    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        usar_ruta_servidor = True
-
-    # ========= MENSAJE LEGAL RECTIFICATIVA =========
-    texto_rect = (emisor.texto_rectificativa or "").strip()
-
-    if not texto_rect:
-        texto_rect = (
-            "Factura rectificativa emitida conforme al Art. 89 de la Ley 37/1992 del IVA. "
-            f"Esta rectificación afecta a la factura original Nº {factura.numero} de fecha "
-            f"{factura.fecha.strftime('%d/%m/%Y')}, dejando sin efecto sus importes."
-        )
-
-    # Nueva rectificativa
-    numero_rect = f"{factura.numero}R"
-
-    rect = Factura(
-        empresa_id=factura.empresa_id,   # 🔥 HEREDA EMPRESA
-        cliente_id=factura.cliente_id,
-        fecha=date.today(),
-        numero=numero_rect,
-        estado="VALIDADA",
-        subtotal=0,
-        iva_total=0,
-        total=0,
-        iva_global=factura.iva_global
-    )
-    session.add(rect)
-    session.flush()
-
-    # Inserta el mensaje legal en la factura rectificativa
-    rect.mensaje_iva = texto_rect
-
-    # IVA GLOBAL original
-    iva_factura = factura.iva_global or 0
-
-    originales = session.exec(
-        select(LineaFactura).where(LineaFactura.factura_id == factura.id)
-    ).all()
-
-    subtotal = iva_total = 0
-    lineas_rect = []
-
-    for l in originales:
-        base = l.cantidad * l.precio_unitario
-        iva_calc = base * iva_factura / 100
-
-        nueva = LineaFactura(
-            factura_id=rect.id,
-            descripcion=f"(Rectific.) {l.descripcion}",
-            cantidad=-l.cantidad,
-            precio_unitario=l.precio_unitario,
-            total=-(base + iva_calc),
-            concepto_id=l.concepto_id
-        )
-
-        subtotal += -base
-        iva_total += -iva_calc
-
-        session.add(nueva)
-        lineas_rect.append(nueva)
-
-    rect.subtotal = round(subtotal, 2)
-    rect.iva_total = round(iva_total, 2)
-    rect.total = round(subtotal + iva_total, 2)
-    session.commit()
-    empresa_id = get_empresa_id(request)
-    if not empresa_id:
-        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+        raise HTTPException(400, "No hay configuración emisor")
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -1306,33 +1183,74 @@ def factura_rectificar(
         )
     ).first()
 
-    # ============================
-    # PDF (solo local si existe ruta válida)
-    # ============================
-    if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-        try:
-            generar_factura_pdf(
-                factura=rect,
-                lineas=lineas_rect,
-                ruta_base=ruta_base,
-                emisor=emisor,
-                config=config,
-                incluir_mensaje_iva=True,
-            )
-        except Exception:
-            # El fallo del PDF NO puede invalidar la operación fiscal
-            pass
+    numero_rect = f"{factura.numero}R"
 
-    auditar(
-        session,
-        entidad="FACTURA",
-        entidad_id=factura.id,
-        accion="RECTIFICAR",
-        resultado="OK",
-        nivel_evento="FISCAL",
-        ip=get_ip(request) if request else None,
-        user_agent=get_user_agent(request) if request else None,
+    rect = Factura(
+        empresa_id=factura.empresa_id,
+        cliente_id=factura.cliente_id,
+        fecha=date.today(),
+        numero=numero_rect,
+        estado="VALIDADA",
+        subtotal=0,
+        iva_total=0,
+        total=0,
+        iva_global=factura.iva_global,
+        mensaje_iva=(emisor.texto_rectificativa or "Factura rectificativa.")
     )
+
+    session.add(rect)
+    session.flush()
+
+    iva = factura.iva_global or 0
+    originales = session.exec(
+        select(LineaFactura).where(LineaFactura.factura_id == factura.id)
+    ).all()
+
+    subtotal = iva_total = 0
+
+    for l in originales:
+        base = l.cantidad * l.precio_unitario
+        cuota = base * iva / 100
+
+        session.add(
+            LineaFactura(
+                factura_id=rect.id,
+                descripcion=f"(Rectific.) {l.descripcion}",
+                cantidad=-l.cantidad,
+                precio_unitario=l.precio_unitario,
+                total=-(base + cuota),
+                concepto_id=l.concepto_id
+            )
+        )
+
+        subtotal += -base
+        iva_total += -cuota
+
+    rect.subtotal = round(subtotal, 2)
+    rect.iva_total = round(iva_total, 2)
+    rect.total = round(subtotal + iva_total, 2)
+
+    session.commit()
+
+    # PDF
+    try:
+       base_dir, ruta_pdf = resolver_ruta_pdf_factura(rect, emisor)
+
+       generar_factura_pdf(
+            factura=rect,
+            lineas=session.exec(select(LineaFactura).where(LineaFactura.factura_id == rect.id)).all(),
+            ruta_base=str(base_dir),
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+
+       rect.ruta_pdf = f"/storage/view?path={ruta_pdf}"
+       session.add(rect)
+       session.commit()
+
+    except Exception:
+        pass
 
     return {"ok": True, "rectificativa_id": rect.id, "numero": rect.numero}
 
@@ -1463,43 +1381,24 @@ async def enviar_factura_email(request: Request,
         import tempfile
         import os
 
-        ruta_base = (emisor.ruta_pdf or "").strip()
 
-        # ============================
-        # 1) Si hay carpeta local válida → úsala
-        # ============================
-        if ruta_base and os.path.isdir(ruta_base) and os.access(ruta_base, os.W_OK):
-            ruta_fisica, _ = generar_factura_pdf(
-                factura=factura,
-                lineas=factura.lineas,
-                ruta_base=ruta_base,
-                emisor=emisor,
-                config=config,
-                incluir_mensaje_iva=True,
-            )
-            pdf_path = ruta_fisica
-
-        else:
-            # ============================
-            # 2) Servidor / sin ruta → generar PDF temporal
-            # ============================
-            tmp_dir = tempfile.gettempdir()
-            tmp_file = os.path.join(
-                tmp_dir,
-                f"factura_{factura.id or 'tmp'}.pdf"
-            )
+    if adjuntar_pdf:
+        try:
+            base_dir, ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
 
             generar_factura_pdf(
                 factura=factura,
                 lineas=factura.lineas,
-                ruta_base=tmp_dir,
+                ruta_base=str(base_dir),
                 emisor=emisor,
                 config=config,
                 incluir_mensaje_iva=True,
-                nombre_personalizado=os.path.basename(tmp_file)
             )
 
-            pdf_path = tmp_file
+            pdf_path = ruta_pdf
+
+        except Exception:
+            pdf_path = None
 
 
     # =========================
