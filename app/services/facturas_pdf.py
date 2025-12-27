@@ -429,7 +429,10 @@ def generar_factura_pdf(
             c.drawString(margen_x, y_legal, linea)
             y_legal -= 12
 
-    print("GUARDANDO PDF EN:", ruta_pdf)
+    if en_render:
+        print("GENERANDO PDF EN MEMORIA (Render)")
+    else:
+        print("GUARDANDO PDF EN:", ruta_pdf)
 
     c.save()
 
@@ -438,13 +441,12 @@ def generar_factura_pdf(
     # ============================================
     if en_render:
         buffer.seek(0)
-        nombre_archivo = f"Factura_{safe_num}.pdf"
-        return buffer, nombre_archivo
+        return buffer, f"Factura_{safe_num}.pdf"
 
-    # LOCAL
     rel = ruta_pdf.replace(str(base_dir), "").replace("\\", "/")
     ruta_url = f"/pdf{rel}"
-    return ruta_pdf, ruta_url
+
+    return ruta_pdf, os.path.basename(ruta_pdf)
 
 def dibujar_qr(c, url: str, x: float, y: float, size_mm: float = 35):
     """
