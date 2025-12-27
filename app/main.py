@@ -207,9 +207,25 @@ def get_emisor_logo(context):
                 select(Emisor).where(Emisor.empresa_id == empresa_id)
             ).first()
 
-            if emisor and emisor.logo_path:
-                return f"/static/{emisor.logo_path.lstrip('/')}"
-        return None
+            if not emisor or not emisor.logo_path:
+                return None
+
+            path = str(emisor.logo_path)
+
+            # Normalizar Render / Local
+            # Si viene como "data/uploads/xxx"
+            if "data/uploads" in path:
+                filename = path.split("/")[-1]
+                return f"/static/uploads/{filename}"
+
+            # Si ya viene correcto
+            if path.startswith("uploads/"):
+                return f"/static/{path}"
+
+            # fallback general
+            filename = path.split("/")[-1]
+            return f"/static/uploads/{filename}"
+
     except:
         return None
 
