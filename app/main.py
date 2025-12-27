@@ -107,7 +107,7 @@ else:
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 app.mount(
-    "/static/uploads",
+    "/uploads",
     StaticFiles(directory=str(UPLOADS_DIR)),
     name="uploads",
 )
@@ -208,7 +208,7 @@ def get_emisor_logo(context):
             ).first()
 
             if emisor and emisor.logo_path:
-                return f"/static/uploads/{emisor.logo_path}"
+                return f"/uploads/{emisor.logo_path}"
 
         return None
     except:
