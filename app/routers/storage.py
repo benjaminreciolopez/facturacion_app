@@ -123,20 +123,53 @@ def storage_explorer(
     )
 
 
+
 @router.get("/storage/view")
 def storage_view(path: str = Query(...)):
-
     real_path = Path(path).resolve()
 
-    # Seguridad: impedir salir de /data
+    # Seguridad → no permitir salir de /data
     if BASE_PATH not in real_path.parents and real_path != BASE_PATH:
         raise HTTPException(403, "Acceso no permitido")
 
     if not real_path.exists():
         raise HTTPException(404, "Archivo no encontrado")
 
-    # Detectar MIME
-    mime, _ = mimetypes.guess_type(str(real_path))
-    mime = mime or "application/octet-stream"
+    if real_path.is_dir():
+        raise HTTPException(400, "No se puede previsualizar una carpeta")
 
-    return FileResponse(real_path, media_type=mime)
+    # Detectar MIME
+    mime, _ = mimetypes.guess_type(real_path.name)
+    if not mime:
+        mime = "application/octet-stream"
+
+    return FileResponse(
+        real_path,
+        media_type=mime,
+        filename=real_path.name,            # nombre correcto
+        headers={
+            "Content-Disposition": f'inline; filename="{real_path.name}"'
+        }
+    )
+@router.get("/storage/download")
+def storage_download(path: str = Query(...)):
+    real_path = Path(path).resolve()
+
+    # Seguridad → evitar salir de /data
+    if BASE_PATH not in real_path.parents and real_path != BASE_PATH:
+        raise HTTPException(403, "Acceso no permitido")
+
+    if not real_path.exists():
+        raise HTTPException(404, "Archivo no encontrado")
+
+    if real_path.is_dir():
+        raise HTTPException(400, "No se puede descargar una carpeta")
+
+    return FileResponse(
+        real_path,
+        media_type="application/octet-stream",
+        filename=real_path.name,                       # nombre correcto
+        headers={
+            "Content-Disposition": f'attachment; filename="{real_path.name}"'
+        },
+    )
