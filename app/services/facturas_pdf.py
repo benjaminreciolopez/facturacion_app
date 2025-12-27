@@ -438,8 +438,10 @@ def generar_factura_pdf(
     # ============================================
     if en_render:
         buffer.seek(0)
-        return buffer, None
+        nombre_archivo = f"Factura_{safe_num}.pdf"
+        return buffer, nombre_archivo
 
+    # LOCAL
     rel = ruta_pdf.replace(str(base_dir), "").replace("\\", "/")
     ruta_url = f"/pdf{rel}"
     return ruta_pdf, ruta_url
