@@ -95,8 +95,22 @@ app.mount("/pdf", StaticFiles(directory=PDF_ROOT), name="pdf")
 # ============================================================
 # UPLOADS
 # ============================================================
-UPLOADS_DIR = Path("app/static/uploads")
+
+IS_RENDER = os.getenv("RENDER", False)
+
+if IS_RENDER:
+    UPLOADS_DIR = Path("/data/uploads")
+else:
+    UPLOADS_DIR = Path("app/static/uploads")
+
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+if IS_RENDER:
+    app.mount(
+        "/static/uploads",
+        StaticFiles(directory=UPLOADS_DIR),
+        name="uploads"
+    )
 
 
 # ============================================================
@@ -195,7 +209,6 @@ def get_emisor_logo(context):
 
             if emisor and emisor.logo_path:
                 return f"/static/{emisor.logo_path.lstrip('/')}"
-
         return None
     except:
         return None
