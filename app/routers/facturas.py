@@ -868,7 +868,6 @@ def factura_generar_pdf(
     request: Request,
     session: Session = Depends(get_session)
 ):
-
     empresa_id = get_empresa_id(request)
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
@@ -877,12 +876,15 @@ def factura_generar_pdf(
     if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
+    # ============================
+    # Líneas
+    # ============================
     lineas = session.exec(
         select(LineaFactura).where(LineaFactura.factura_id == factura_id)
     ).all()
 
     # ============================
-    # 1) Emisor + Config
+    # Emisor + Config
     # ============================
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -897,54 +899,14 @@ def factura_generar_pdf(
         )
     ).first()
 
-    # =====================================================
-    # 2) VALIDAR CONFIGURACIÓN DE CARPETA BASE PDF
-    # =====================================================
-    carpeta_nombre = (emisor.carpeta_pdf_nombre or "").strip()
+    # ============================
+    # Resolver ruta oficial
+    # ============================
+    from app.services.resolver_ruta import resolver_ruta_pdf_factura
 
-    if not carpeta_nombre:
-        raise HTTPException(
-            400,
-            "Debe configurar la carpeta base de facturas PDF en Configuración del Emisor."
-        )
-
-    year = factura.fecha.year
-    quarter = (factura.fecha.month - 1) // 3 + 1
-
-    # =====================================================
-    # 3) BLOQUEO DE CARPETA POR EJERCICIO
-    # =====================================================
-    if (
-        emisor.pdf_carpeta_bloqueada 
-        and emisor.pdf_anio_bloqueado == year 
-        and emisor.pdf_nombre_bloqueado != carpeta_nombre
-    ):
-        raise HTTPException(
-            400,
-            "La carpeta de almacenamiento PDF ya está bloqueada para este ejercicio y no puede cambiarse."
-        )
-
-    # Si es la primera vez del año → BLOQUEAMOS
-    if not emisor.pdf_carpeta_bloqueada or emisor.pdf_anio_bloqueado != year:
-        emisor.pdf_carpeta_bloqueada = True
-        emisor.pdf_anio_bloqueado = year
-        emisor.pdf_nombre_bloqueado = carpeta_nombre
-        session.add(emisor)
-        session.commit()
-
-    # =====================================================
-    # 4) RESOLVER RUTA REAL
-    # =====================================================
-    base_dir = Path("/data") / carpeta_nombre / str(year) / f"T{quarter}"
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    filename = f"Factura_{factura.numero}.pdf"
-    ruta_fisica = base_dir / filename
-
-    # =====================================================
-    # 5) GENERAR PDF REAL USANDO TU SERVICIO
-    # =====================================================
     try:
+        base_dir, ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
+
         generar_factura_pdf(
             factura=factura,
             lineas=lineas,
@@ -953,6 +915,10 @@ def factura_generar_pdf(
             config=config,
             incluir_mensaje_iva=True,
         )
+
+        factura.ruta_pdf = f"/storage/view?path={ruta_pdf}"
+        session.add(factura)
+        session.commit()
 
     except Exception as e:
         return templates.TemplateResponse(
@@ -964,14 +930,6 @@ def factura_generar_pdf(
             }
         )
 
-    # =====================================================
-    # 6) GUARDAR RUTA ACCESIBLE
-    # =====================================================
-    factura.ruta_pdf = f"/storage/view?path={ruta_fisica}"
-    session.add(factura)
-    session.commit()
-
-    # Abrir directamente
     return RedirectResponse(factura.ruta_pdf, status_code=303)
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
