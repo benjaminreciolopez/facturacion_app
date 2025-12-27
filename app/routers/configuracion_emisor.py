@@ -159,8 +159,8 @@ async def emisor_upload_logo(request: Request,
     with open(path, "wb") as f:
         f.write(await file.read())
 
-    # Guardamos ruta REAL persistente
-    emisor.logo_path = str(path)
+    # Guardamos SOLO el nombre
+    emisor.logo_path = filename
     session.commit()
 
     return RedirectResponse("/configuracion/emisor", status_code=303)
