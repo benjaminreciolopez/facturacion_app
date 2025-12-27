@@ -28,7 +28,7 @@ from app.services.resumen_fiscal_service import calcular_estado_fiscal
 from app.constants.auditoria import RES_OK, RES_ERROR
 from app.services.verifactu_envio import enviar_a_aeat
 from app.models.configuracion_sistema import ConfiguracionSistema
-from app.services.email_service import send_email, run_async
+from app.services.email_service import run_async, enviar_email_factura_construido
 from app.utils.session_empresa import get_empresa_id
 
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -181,7 +181,7 @@ def factura_form(
     session: Session = Depends(get_session),
 ):
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     clientes = session.exec(
         select(Cliente)
@@ -841,7 +841,7 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
     ).all()
 
     # 1) Verificar ruta del emisor
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -883,7 +883,7 @@ def factura_generar_pdf(factura_id: int, request: Request, session: Session = De
                 "solucion": "Otorga permisos o selecciona otra carpeta."
             }
         )
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -931,7 +931,7 @@ def factura_delete(request: Request,
     session: Session = Depends(get_session)
 ):
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -966,7 +966,7 @@ def factura_anular(
     session: Session = Depends(get_session)
 ):
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1003,7 +1003,7 @@ def factura_anular(
     # 1) Verificar ruta PDFs
     # ============================
     # Ruta y textos del emisor
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1100,7 +1100,7 @@ def factura_anular(
 
     session.commit()
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -1148,7 +1148,7 @@ def factura_rectificar(
     session: Session = Depends(get_session)
 ):
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1185,7 +1185,7 @@ def factura_rectificar(
     # Ruta y textos del emisor
     # ============================
     # 2) Comprobar ruta PDF pero NO bloquear si no existe
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1263,7 +1263,7 @@ def factura_rectificar(
     rect.iva_total = round(iva_total, 2)
     rect.total = round(subtotal + iva_total, 2)
     session.commit()
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     config = session.exec(
         select(ConfiguracionSistema).where(
@@ -1311,13 +1311,13 @@ def factura_pre_validar(request: Request,
     session: Session = Depends(get_session)
 ):
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
-    
-    empresa_id = request.session["empresa_id"]
+
+    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1355,9 +1355,8 @@ async def enviar_factura_email(request: Request,
     data: dict = Body(...),
     session: Session = Depends(get_session)
 ):
-    from app.services.email_service import run_async, enviar_email_factura_construido
 
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
@@ -1399,7 +1398,7 @@ async def enviar_factura_email(request: Request,
     # =========================
     # PREPARAR TODO ANTES DEL HILO
     # =========================
-    empresa_id = request.session["empresa_id"]
+    empresa_id = get_empresa_id(request)
 
     emisor = session.exec(
         select(Emisor).where(Emisor.empresa_id == empresa_id)
@@ -1407,8 +1406,8 @@ async def enviar_factura_email(request: Request,
 
     if not emisor:
         raise HTTPException(400, "No hay configuración del emisor para esta empresa")
-    
-    empresa_id = request.session["empresa_id"]
+
+    empresa_id = get_empresa_id(request)
 
     config = session.exec(
         select(ConfiguracionSistema).where(
