@@ -68,6 +68,9 @@ def generar_factura_pdf(
         nombre_archivo = f"Factura_{safe_num}.pdf"
         ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
 
+        # 👈 ESTA LÍNEA ERA LA QUE FALTABA
+        c = canvas.Canvas(ruta_pdf, pagesize=A4)
+
 
 
     # =============================
