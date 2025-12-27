@@ -2,7 +2,6 @@
 
 import os
 import textwrap
-from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import simpleSplit
@@ -12,11 +11,8 @@ from reportlab.lib.units import mm
 
 from app.services.verifactu_qr import construir_url_qr
 from app.models.configuracion_sistema import ConfiguracionSistema
-from app.db.session import engine
-from sqlmodel import Session
 from app.services.resolver_ruta import resolver_ruta_pdf_factura
 import os
-from io import BytesIO
 
 def generar_factura_pdf(
     factura,
@@ -26,7 +22,6 @@ def generar_factura_pdf(
     incluir_mensaje_iva=True,
 ):
 
-    en_render = False
 
     # ============================================
     # PREPARACIÓN ENTORNO
@@ -56,6 +51,8 @@ def generar_factura_pdf(
     # =============================
     ancho, alto = A4
     margen_x = 30
+    top_y = alto - 40      #  <<< ASEGURA ESTA LÍNEA
+
 
     # -----------------------------
     # TÍTULO CENTRADO
