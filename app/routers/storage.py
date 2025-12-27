@@ -124,7 +124,7 @@ def storage_explorer(
 
 
 
-@router.get("/storage/view")
+@router.get("/view")
 def storage_view(path: str = Query(...)):
     real_path = Path(path).resolve()
 
@@ -151,7 +151,7 @@ def storage_view(path: str = Query(...)):
             "Content-Disposition": f'inline; filename="{real_path.name}"'
         }
     )
-@router.get("/storage/download")
+@router.get("/download")
 def storage_download(path: str = Query(...)):
     real_path = Path(path).resolve()
 
