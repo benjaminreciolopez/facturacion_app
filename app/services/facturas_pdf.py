@@ -14,7 +14,7 @@ from app.services.verifactu_qr import construir_url_qr
 from app.models.configuracion_sistema import ConfiguracionSistema
 from app.db.session import engine
 from sqlmodel import Session
-from app.services.paths import resolver_ruta_pdf
+from app.services.resolver_ruta import resolver_ruta_pdf_factura
 import os
 from io import BytesIO
 
@@ -45,7 +45,7 @@ def generar_factura_pdf(
     # ============================================
     # CREAR CANVAS
     # ============================================
-    base_dir = resolver_ruta_pdf(ruta_base)
+    base_dir = resolver_ruta_pdf_factura(factura, emisor)
 
     año = str(fecha.year)
     trimestre = f"T{((fecha.month - 1) // 3) + 1}"
@@ -57,15 +57,6 @@ def generar_factura_pdf(
     ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
 
     c = canvas.Canvas(ruta_pdf, pagesize=A4)
-
-    print("=== PDF LOCAL ===")
-    print("APP_ENV:", os.getenv("APP_ENV"))
-    print("RENDER:", os.getenv("RENDER"))
-    print("ruta_base recibida:", ruta_base)
-    print("base_dir resuelto:", base_dir)
-    print("carpeta_destino:", carpeta_destino)
-    print("ruta_pdf final:", ruta_pdf)
-
 
     # =============================
     # Crear PDF
@@ -415,11 +406,6 @@ def generar_factura_pdf(
         for linea in textwrap.wrap(emisor.texto_pie, 90):
             c.drawString(margen_x, y_legal, linea)
             y_legal -= 12
-
-    if en_render:
-        print("GENERANDO PDF EN MEMORIA (Render)")
-    else:
-        print("GUARDANDO PDF EN:", ruta_pdf)
 
     c.save()
 
