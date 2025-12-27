@@ -140,6 +140,8 @@ async def emisor_upload_logo(
     file: UploadFile,
     session: Session = Depends(get_session),
 ):
+    print("LOGO GUARDADO EN:", path)
+
     if is_mobile(request):
         raise HTTPException(403, "La configuración solo puede modificarse desde un ordenador")
 
@@ -154,18 +156,19 @@ async def emisor_upload_logo(
     if not emisor:
         raise HTTPException(404, "Emisor no encontrado")
 
-    # === Carpeta por empresa ===
-    empresa_dir = UPLOAD_DIR / str(empresa_id)
-    empresa_dir.mkdir(parents=True, exist_ok=True)
+    # ==============================
+    # Carpeta por empresa
+    # ==============================
+    empresa_folder = UPLOAD_DIR / str(empresa_id)
+    empresa_folder.mkdir(parents=True, exist_ok=True)
 
     filename = "logo.png"
-    path = empresa_dir / filename
+    path = empresa_folder / filename
 
-    # Guardar archivo
     with open(path, "wb") as f:
         f.write(await file.read())
 
-    # Guardar SOLO nombre relativo
+    # Guardamos ruta RELATIVA
     emisor.logo_path = f"{empresa_id}/{filename}"
     session.commit()
 
