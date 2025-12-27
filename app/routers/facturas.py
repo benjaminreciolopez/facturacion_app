@@ -905,12 +905,11 @@ def factura_generar_pdf(
     from app.services.resolver_ruta import resolver_ruta_pdf_factura
 
     try:
-        base_dir, ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
+        ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
 
         generar_factura_pdf(
             factura=factura,
             lineas=lineas,
-            ruta_base=str(base_dir),
             emisor=emisor,
             config=config,
             incluir_mensaje_iva=True,

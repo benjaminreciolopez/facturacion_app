@@ -43,20 +43,14 @@ def generar_factura_pdf(
     safe_num = numero.replace("/", "-").replace("\\", "-")
 
     # ============================================
-    # CREAR CANVAS
+    # CREAR CANVAS — NUEVO SISTEMA
     # ============================================
-    base_dir = resolver_ruta_pdf_factura(factura, emisor)
+    destino, ruta_pdf = resolver_ruta_pdf_factura(factura, emisor)
 
-    año = str(fecha.year)
-    trimestre = f"T{((fecha.month - 1) // 3) + 1}"
+    # Asegurar carpeta (aunque ya lo hace el resolver, pero es seguro)
+    destino.mkdir(parents=True, exist_ok=True)
 
-    carpeta_destino = os.path.join(base_dir, año, trimestre)
-    os.makedirs(carpeta_destino, exist_ok=True)
-
-    nombre_archivo = f"Factura_{safe_num}.pdf"
-    ruta_pdf = os.path.join(carpeta_destino, nombre_archivo)
-
-    c = canvas.Canvas(ruta_pdf, pagesize=A4)
+    c = canvas.Canvas(str(ruta_pdf), pagesize=A4)
 
     # =============================
     # Crear PDF
