@@ -56,7 +56,6 @@ def generar_factura_pdf(
     # =============================
     ancho, alto = A4
     margen_x = 30
-    top_y = alto - 40
 
     # -----------------------------
     # TÍTULO CENTRADO
@@ -101,25 +100,29 @@ def generar_factura_pdf(
 
         emisor = Dummy()
 
+       
     # Logo arriba-izquierda
-    logo_y_top = alto - 50  # algo por debajo del título
+    top_y = alto - 60   # baja todo 20px
+    logo_y_top = alto - 100
     logo_x = margen_x
-    y_emisor_inicio = logo_y_top  # por si no hay logo
+    y_emisor_inicio = logo_y_top - 10
 
     logo_path = getattr(emisor, "logo_path", None)
-    if logo_path:
-        # convertir /static/uploads/... a ruta real de disco si es el caso
-        if logo_path.startswith("/"):
-            logo_fs = os.path.join("app", logo_path.lstrip("/"))
-        else:
-            logo_fs = logo_path
 
-        if os.path.exists(logo_fs):
+    if logo_path:
+        posibles_rutas = [
+            logo_path,
+            os.path.join("app", logo_path.lstrip("/")),
+            os.path.join("/data", logo_path.lstrip("/")),
+        ]
+
+        logo_fs = next((p for p in posibles_rutas if os.path.exists(p)), None)
+
+        if logo_fs:
             try:
                 c.drawImage(logo_fs, logo_x, logo_y_top - 60, width=100, height=80, mask="auto")
-                y_emisor_inicio = logo_y_top - 70  # debajo del logo
+                y_emisor_inicio = logo_y_top - 80
             except Exception:
-                # Si falla, seguimos sin logo
                 y_emisor_inicio = logo_y_top - 10
         else:
             y_emisor_inicio = logo_y_top - 10
@@ -179,7 +182,7 @@ def generar_factura_pdf(
     # =============================
     c.setFont("Helvetica-Bold", 11)
     x_right = ancho - margen_x
-    y_right = alto - 70  # algo por debajo del título
+    y_right = alto - 120
 
     c.drawRightString(x_right, y_right, f"Fecha: {factura.fecha.strftime('%d/%m/%Y')}")
     y_right -= 15
@@ -191,7 +194,7 @@ def generar_factura_pdf(
     # =============================
     cliente = factura.cliente
 
-    y_cliente = y_emisor_inicio  # alineamos verticalmente con el bloque emisor
+    y_cliente = y_emisor_inicio - 10
     x_cliente = ancho / 2 + 120   # mitad derecha
 
     c.setFont("Helvetica-Bold", 11)

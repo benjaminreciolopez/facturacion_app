@@ -932,10 +932,7 @@ def factura_generar_pdf(
     # ABRIRLO EN EL VISOR /storage
     # ============================
 
-    return RedirectResponse(
-        f"/storage/view?path={str(ruta_pdf)}",
-        status_code=303
-    )
+    return RedirectResponse("/facturas", status_code=303)
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()
