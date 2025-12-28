@@ -22,26 +22,29 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # ---------------------------------------------------
         # RUTAS PÚBLICAS
         # ---------------------------------------------------
-        rutas_publicas = (
+        rutas_publicas_exact = (
             "/",
             "/login",
             "/setup",
             "/logout",
             "/registro",
-            "/usuarios",
             "/pin",
-            "/static",
-            "/pdf",
-            "/favicon.ico",
-            "/offline",
-            "/manifest.json",
-            "/sw.js",
 
         )
 
-        if any(path.startswith(r) for r in rutas_publicas):
-            return await call_next(request)
+        rutas_publicas_prefix = (
+            "/static",
+            "/pdf",
+            "/offline",
+            "/manifest",
+            "/favicon",
+            "/sw.js",
+            
+        )
 
+        if path in rutas_publicas_exact or any(path.startswith(p) for p in rutas_publicas_prefix):
+            return await call_next(request)
+        
         # ---------------------------------------------------
         # VALIDAR LOGIN (existencia de sesión)
         # ---------------------------------------------------
