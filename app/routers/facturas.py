@@ -388,10 +388,16 @@ def factura_edit_save(request: Request,
     if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
 
+    # 🔥 LEGACY FIX
+    if factura.empresa_id is None:
+        factura.empresa_id = empresa_id
+        session.add(factura)
+        session.commit()
+
     bloquear_edicion_factura(factura, session)
 
     if fecha:
-        validar_fecha_factura(fecha, session)
+        validar_fecha_factura(fecha, session, empresa_id=empresa_id)
 
     factura.cliente_id = cliente_id
     factura.fecha = fecha
@@ -464,9 +470,17 @@ def factura_preview_validacion(request: Request,
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
+
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
         raise HTTPException(404, "Factura no encontrada")
+    
+        # 🔥 LEGACY FIX
+    if factura.empresa_id is None:
+        factura.empresa_id = empresa_id
+        session.add(factura)
+        session.commit()
+
 
     # Última factura validada
     ultima = session.exec(
@@ -523,6 +537,7 @@ def validar_factura(
     if not empresa_id:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
+
     factura = session.get(Factura, factura_id)
     if not factura or factura.empresa_id != empresa_id:
         auditar(
@@ -551,6 +566,13 @@ def validar_factura(
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
         )
+
+    # 🔥 LEGACY FIX
+    if factura.empresa_id is None:
+        factura.empresa_id = empresa_id
+        session.add(factura)
+        session.commit()
+
         return {"ok": False, "error": "La factura ya está validada."}
 
     # ============================
