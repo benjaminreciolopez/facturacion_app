@@ -163,17 +163,38 @@ async function cacheFirst(request) {
 }
 
 async function networkFirst(request) {
+  const cache = await caches.open(DYNAMIC_CACHE);
+
   try {
-    // reconstruimos la request para asegurar cookies
     const newRequest = new Request(request, {
       credentials: "include",
     });
 
     const response = await fetch(newRequest);
-    const cache = await caches.open(DYNAMIC_CACHE);
-    cache.put(request, response.clone());
+
+    // 401 o 403 → sesión expirada
+    if ([401, 403].includes(response.status)) {
+      console.warn("[SW] Sesión expirada. Limpiando cache protegida");
+
+      // Borramos dashboard & facturas cacheadas
+      await cache.delete("/dashboard");
+      await cache.delete("/facturas");
+
+      return fetch("/login", { credentials: "include" });
+    }
+
+    // Solo cachear respuestas válidas 200
+    if (response.status === 200) {
+      cache.put(request, response.clone());
+    }
+
     return response;
-  } catch {
-    return (await caches.match(request)) || (await caches.match("/offline"));
+  } catch (err) {
+    // OFFLINE: intenta cache
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    // Sin cache → página offline
+    return caches.match("/offline");
   }
 }
