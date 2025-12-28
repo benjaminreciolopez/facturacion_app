@@ -551,6 +551,7 @@ def validar_factura(
             motivo="Factura no encontrada",
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         return {"ok": False, "error": "Factura no encontrada."}
 
@@ -565,7 +566,9 @@ def validar_factura(
             motivo="Factura ya validada",
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
+        return {"ok": False, "error": "La factura ya está validada."}
 
     # 🔥 LEGACY FIX
     if factura.empresa_id is None:
@@ -573,7 +576,6 @@ def validar_factura(
         session.add(factura)
         session.commit()
 
-        return {"ok": False, "error": "La factura ya está validada."}
 
     # ============================
     # 1) Validar fecha
@@ -592,6 +594,7 @@ def validar_factura(
             motivo=e.detail,
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         return {"ok": False, "error": e.detail}
     except Exception as e:
@@ -606,6 +609,7 @@ def validar_factura(
             motivo=str(e),
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         raise
 
@@ -646,6 +650,7 @@ def validar_factura(
             motivo="Fecha anterior a la última factura validada",
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         return {"ok": False, "error": "Fecha inválida."}
 
@@ -685,6 +690,7 @@ def validar_factura(
             motivo=e.detail,
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         return {"ok": False, "error": e.detail}
     except Exception as e:
@@ -698,6 +704,7 @@ def validar_factura(
             motivo=str(e),
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         raise
 
@@ -726,6 +733,7 @@ def validar_factura(
             motivo=e.detail,
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         session.rollback()
         return {"ok": False, "error": e.detail}
@@ -740,6 +748,7 @@ def validar_factura(
             motivo=str(e),
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
         session.rollback()
         raise
@@ -773,6 +782,7 @@ def validar_factura(
             motivo=f"PDF no generado: {e}",
             ip=get_ip(request) if request else None,
             user_agent=get_user_agent(request) if request else None,
+            request=request
         )
 
     # ============================
@@ -787,6 +797,7 @@ def validar_factura(
         nivel_evento="FISCAL",
         ip=get_ip(request) if request else None,
         user_agent=get_user_agent(request) if request else None,
+        request=request
     )
 
     return {

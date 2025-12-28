@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse
 from sqlmodel import Session, select
-from datetime import date
+from datetime import datetime, date
 from app.db.session import get_session
 from app.core.templates import templates
 from app.models.auditoria import Auditoria
@@ -38,7 +38,8 @@ def auditoria_list(
         query = query.where(Auditoria.created_at >= fecha_desde)
 
     if fecha_hasta:
-        query = query.where(Auditoria.created_at <= fecha_hasta)
+        fecha_hasta_dt = datetime.combine(fecha_hasta, datetime.max.time())
+        query = query.where(Auditoria.created_at <= fecha_hasta_dt)
 
     eventos = session.exec(
         query.order_by(Auditoria.created_at.desc())

@@ -14,13 +14,13 @@ def auditar(
     accion: str,
     resultado: str,
     entidad_id: int | None = None,
-    nivel_evento: str | None = None,
     motivo: str | None = None,
     usuario: str | None = None,
     ip: str | None = None,
     user_agent: str | None = None,
     request: Request | None = None,
     empresa_id: int | None = None,
+    payload: dict | None = None,
 ):
     """
     Registra un evento de auditoría de forma segura.
@@ -66,17 +66,18 @@ def auditar(
             accion=accion,
             resultado=resultado,
             motivo=motivo,
-            usuario=usuario,
+            user_id=usuario,
+            company_id=empresa_id,
             ip=ip,
             user_agent=user_agent,
-            fecha=datetime.utcnow(),
+            payload=payload,
+            created_at=datetime.utcnow(),   # << CORRECTO
         )
 
         session.add(evento)
         session.commit()
 
     except Exception:
-        # Nunca romper aplicación por auditoría
         try:
             session.rollback()
         except:
