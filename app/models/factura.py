@@ -47,6 +47,11 @@ class Factura(SQLModel, table=True):
 class RegistroVerifactu(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
+    empresa_id: int = Field(
+        index=True,
+        foreign_key="empresa.id"
+    )
+
     factura_id: int = Field(foreign_key="factura.id")
     factura: Optional[Factura] = Relationship(back_populates="registros_verifactu")
 
