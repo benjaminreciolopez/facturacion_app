@@ -174,9 +174,9 @@ async function networkFirst(request) {
 
     // 401 o 403 → sesión expirada
     if ([401, 403].includes(response.status)) {
-      console.warn("[SW] Sesión expirada. Limpiando cache protegida");
+      console.warn("[SW] Sesión expirada → limpiando cache y login");
 
-      // Borramos dashboard & facturas cacheadas
+      const cache = await caches.open(DYNAMIC_CACHE);
       await cache.delete("/dashboard");
       await cache.delete("/facturas");
 
