@@ -76,25 +76,21 @@ if DATA_DIR.exists():
 # MIDDLEWARE → ORDEN CORRECTO REAL
 # ============================================================
 
-# ============================================================
-# MIDDLEWARE → ORDEN CORRECTO REAL
-# ============================================================
+# 1️⃣ Primero AUTH
+app.add_middleware(AuthMiddleware)
 
-# 1️⃣ SESIÓN — SIEMPRE LO PRIMERO
+# 2️⃣ Luego FirstRun
+app.add_middleware(FirstRunMiddleware)
+
+# 3️⃣ ÚLTIMO → SessionMiddleware
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="factura_session",
     same_site="none",
     https_only=True,
-    max_age=60 * 60 * 24 * 7,
+    max_age=60 * 60 * 24 * 1,
 )
-
-# 2️⃣ Luego First Run
-app.add_middleware(FirstRunMiddleware)
-
-# 3️⃣ Último Auth
-app.add_middleware(AuthMiddleware)
 
 
 # ============================================================
