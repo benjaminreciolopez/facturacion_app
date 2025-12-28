@@ -166,35 +166,38 @@ async function networkFirst(request) {
   const cache = await caches.open(DYNAMIC_CACHE);
 
   try {
-    const newRequest = new Request(request, {
-      credentials: "include",
-    });
-
+    const newRequest = new Request(request, { credentials: "include" });
     const response = await fetch(newRequest);
 
-    // 401 o 403 → sesión expirada
+    // Sesión expirada
     if ([401, 403].includes(response.status)) {
       console.warn("[SW] Sesión expirada → limpiando cache y login");
 
-      const cache = await caches.open(DYNAMIC_CACHE);
       await cache.delete("/dashboard");
       await cache.delete("/facturas");
 
       return fetch("/login", { credentials: "include" });
     }
 
-    // Solo cachear respuestas válidas 200
-    if (response.status === 200) {
+    // Redirecciones
+    if (response.type === "opaqueredirect") {
+      return response;
+    }
+
+    // Cachear solo HTML válido
+    if (
+      response.status === 200 &&
+      response.headers.get("content-type")?.includes("text/html")
+    ) {
       cache.put(request, response.clone());
     }
 
     return response;
-  } catch (err) {
-    // OFFLINE: intenta cache
+  } catch {
+    // OFFLINE
     const cached = await cache.match(request);
     if (cached) return cached;
 
-    // Sin cache → página offline
     return caches.match("/offline");
   }
 }
