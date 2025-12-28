@@ -171,10 +171,21 @@ async function networkFirst(request) {
 
     // Sesión expirada
     if ([401, 403].includes(response.status)) {
-      console.warn("[SW] Sesión expirada → limpiando cache y login");
+      console.warn(
+        "[SW] Sesión expirada → limpiando cache protegida y yendo a login"
+      );
 
-      await cache.delete("/dashboard");
-      await cache.delete("/facturas");
+      const keys = await cache.keys();
+      for (const req of keys) {
+        const url = new URL(req.url);
+
+        if (
+          url.pathname.startsWith("/dashboard") ||
+          url.pathname.startsWith("/facturas")
+        ) {
+          await cache.delete(req);
+        }
+      }
 
       return fetch("/login", { credentials: "include" });
     }
