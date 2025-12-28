@@ -40,5 +40,9 @@ def get_empresa_id(request: Request) -> int:
     if path.startswith("/api") or "application/json" in accept:
         raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
 
-    # 👉 SI ES WEB / PWA → LOGIN
-    return RedirectResponse("/login", status_code=303)
+    # 👉 SI ES WEB / PWA → FORZAR REDIRECT CORRECTO
+    raise HTTPException(
+        status_code=303,
+        detail="Redirigiendo a login",
+        headers={"Location": "/login"},
+    )
