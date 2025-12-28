@@ -1,11 +1,14 @@
 from fastapi import HTTPException, Request
 
+from fastapi import HTTPException, Request
+from fastapi.responses import RedirectResponse
+
 def get_empresa_id(request: Request) -> int:
     session = request.session or {}
     print("🟡 get_empresa_id() EJECUTANDO")
     print("🟡 SESSION RAW:", session)
 
-    # 1️⃣ Intentar leer empresa_id directo
+    # 1️⃣ Empresa directa
     empresa = session.get("empresa_id")
     if empresa:
         try:
@@ -15,7 +18,7 @@ def get_empresa_id(request: Request) -> int:
         except:
             pass
 
-    # 2️⃣ Recuperar desde user si existe
+    # 2️⃣ Empresa desde user
     user = session.get("user")
     if user:
         empresa_user = user.get("empresa_id")
@@ -26,4 +29,16 @@ def get_empresa_id(request: Request) -> int:
             return empresa_user
 
     print("🔴 NO HAY EMPRESA EN SESIÓN")
-    raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    # =============================
+    #   DIFERENCIAR API vs WEB
+    # =============================
+    path = request.url.path.lower()
+    accept = (request.headers.get("accept") or "").lower()
+
+    # 👉 SI ES API → JSON 401
+    if path.startswith("/api") or "application/json" in accept:
+        raise HTTPException(401, "Sesión no iniciada o empresa no seleccionada")
+
+    # 👉 SI ES WEB / PWA → LOGIN
+    return RedirectResponse("/login", status_code=303)
