@@ -1,148 +1,318 @@
 {% extends "base.html" %} {% block content %}
 
-<h2 class="mb-1">Almacenamiento del servidor</h2>
-<p class="text-muted">Ubicación actual: {{ path }}</p>
+<!-- ================= ALMACENAMIENTO ================= -->
+<div class="mt-3 mb-4 p-3 bg-white border rounded shadow-sm">
+  <div class="d-flex justify-content-between">
+    <strong>Almacenamiento del servidor</strong>
+    <div class="progress mt-2" style="height: 18px">
+      {% set raw = usage.percent if usage and usage.percent is not none else 0
+      %} {% set p = raw|int %} {% if p < 0 %}{% set p = 0 %}{% endif %} {% if p
+      > 100 %}{% set p = 100 %}{% endif %}
 
-<!-- ================= BREADCRUMB ================ -->
-<nav aria-label="breadcrumb">
-  <ol class="breadcrumb">
-    {% for b in breadcrumb %} {% if loop.last %}
-    <li class="breadcrumb-item active" aria-current="page">{{ b.nombre }}</li>
-    {% else %}
-    <li class="breadcrumb-item">
-      <a href="/storage/ui?path={{ b.ruta }}">{{ b.nombre }}</a>
-    </li>
-    {% endif %} {% endfor %}
-  </ol>
-</nav>
+      <div
+        class="progress-bar {{ 
+  'bg-success' if p < 70 
+  else 'bg-warning' if p < 90 
+  else 'bg-danger' 
+}}"
+        role="progressbar"
+        style="--bar: {{ p }}%;"
+        aria-valuenow="{{ p }}"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        {{ p }}%
+      </div>
 
-<!-- ================= LISTADO ================= -->
-<table class="table table-hover align-middle" id="storageTable">
-  <thead>
-    <tr>
-      <th>Nombre</th>
-      <th>Tipo</th>
-      <th>Tamaño</th>
-      <th class="text-end">Acciones</th>
-    </tr>
-  </thead>
+      <!-- ================= OPCIONES ================= -->
+      <div class="d-flex justify-content-between align-items-center my-3">
+        <div>
+          <a
+            href="/storage/ui?path={{ path }}&show_hidden={{ not show_hidden }}"
+            class="btn btn-outline-secondary btn-sm"
+          >
+            {% if show_hidden %} Ocultar archivos del sistema {% else %} Mostrar
+            archivos del sistema {% endif %}
+          </a>
+        </div>
 
-  <tbody>
-    {% for f in elementos %}
-    <tr
-      class="fila-explorer"
-      data-path="{{ f.ruta }}"
-      data-isdir="{{ '1' if f.es_dir else '0' }}"
-    >
-      <td>
-        {% if f.es_dir %}
-        <i class="bi bi-folder-fill text-warning me-2"></i>
-        {% else %}
-        <i class="bi bi-file-earmark-text text-secondary me-2"></i>
-        {% endif %} {{ f.nombre }}
-      </td>
+        <div>
+          <a href="/storage/trash" class="btn btn-outline-dark btn-sm">
+            Papelera
+          </a>
+        </div>
+      </div>
 
-      <td>{{ f.tipo }}</td>
+      {% if trash_view %}
+      <div class="alert alert-warning">
+        Estás viendo la papelera. Los elementos aquí pueden restaurarse o
+        eliminarse definitivamente.
+      </div>
 
-      <td>
-        {% if f.tamano %} {{ "%.1f"|format(f.tamano / 1024) }} KB {% else %} -
-        {% endif %}
-      </td>
+      <div class="text-end mb-3">
+        <button id="vaciarTrash" class="btn btn-danger">Vaciar papelera</button>
+      </div>
+      {% endif %}
 
-      <td class="text-end acciones" style="visibility: hidden">
-        {% if not f.es_dir %}
-        <a
-          href="/storage/view?path={{ f.ruta }}"
-          target="_blank"
-          class="btn btn-sm btn-outline-primary"
-          >Ver</a
-        >
+      <!-- ================= TÍTULO ================= -->
+      <h2 class="mb-1">Almacenamiento del servidor</h2>
+      <p class="text-muted">Ubicación actual: {{ path }}</p>
 
-        <a
-          href="/storage/download?path={{ f.ruta }}"
-          class="btn btn-sm btn-success"
-          >Descargar</a
-        >
-        {% endif %}
+      <!-- ================= BREADCRUMB ================= -->
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          {% for b in breadcrumb %} {% if loop.last %}
+          <li class="breadcrumb-item active" aria-current="page">
+            {{ b.nombre }}
+          </li>
+          {% else %}
+          <li class="breadcrumb-item">
+            <a href="/storage/ui?path={{ b.ruta }}">{{ b.nombre }}</a>
+          </li>
+          {% endif %} {% endfor %}
+        </ol>
+      </nav>
 
-        <button
-          class="btn btn-sm btn-danger btn-delete"
-          data-path="{{ f.ruta }}"
-        >
-          Eliminar
-        </button>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+      <!-- ================= LISTADO ================= -->
+      <table class="table table-hover align-middle" id="storageTable">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Tamaño</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
 
-<style>
-  .fila-explorer.selected {
-    background: #e8f2ff !important;
-    box-shadow: inset 0 0 0 2px #3b82f6;
-  }
-  .fila-explorer {
-    user-select: none;
-    cursor: pointer;
-  }
-</style>
+        <tbody>
+          {% for f in elementos %}
+          <tr
+            class="fila-explorer"
+            data-path="{{ f.ruta }}"
+            data-isdir="{{ '1' if f.es_dir else '0' }}"
+          >
+            <td>
+              {% if f.es_dir %}
+              <i class="bi bi-folder-fill text-warning me-2"></i>
+              {% else %}
+              <i class="bi bi-file-earmark-text text-secondary me-2"></i>
+              {% endif %} {{ f.nombre }}
+            </td>
 
-<script>
-  /* =========================
+            <td>{{ f.tipo }}</td>
+
+            <td>
+              {% if f.tamano %} {{ "%.1f"|format(f.tamano / 1024) }} KB {% else
+              %} - {% endif %}
+            </td>
+
+            <td class="text-end acciones" style="visibility: hidden">
+              {% if f.es_dir and not trash_view %}
+              <a
+                href="/storage/zip?path={{ f.ruta }}"
+                class="btn btn-sm btn-outline-info"
+              >
+                Descargar ZIP
+              </a>
+              {% endif %} {% if not f.es_dir and not trash_view %}
+              <a
+                href="/storage/view?path={{ f.ruta }}"
+                target="_blank"
+                class="btn btn-sm btn-outline-primary"
+              >
+                Ver
+              </a>
+
+              <a
+                href="/storage/download?path={{ f.ruta }}"
+                class="btn btn-sm btn-success"
+              >
+                Descargar
+              </a>
+              {% endif %} {% if trash_view %}
+              <button
+                class="btn btn-sm btn-success btn-restore"
+                data-path="{{ f.ruta }}"
+              >
+                Restaurar
+              </button>
+
+              <button
+                class="btn btn-sm btn-danger btn-delete-permanent"
+                data-path="{{ f.ruta }}"
+              >
+                Eliminar definitivamente
+              </button>
+              {% else %}
+              <button
+                class="btn btn-sm btn-danger btn-delete"
+                data-path="{{ f.ruta }}"
+              >
+                Eliminar
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <!-- ================= ESTILOS ================= -->
+      <style>
+        #storageTable tbody tr:nth-child(even) {
+          background: #fafafa;
+        }
+
+        .fila-explorer.selected {
+          background: #e8f2ff !important;
+          box-shadow: inset 0 0 0 2px #3b82f6;
+        }
+
+        .fila-explorer {
+          user-select: none;
+          cursor: pointer;
+        }
+        .progress-bar {
+          width: var(--bar);
+        }
+      </style>
+
+      <!-- ================= JS ================= -->
+      <script>
+        /* =========================
    Selección estilo Explorer
 ========================= */
 
-  const filas = document.querySelectorAll(".fila-explorer");
-  let seleccionada = null;
+        const filas = document.querySelectorAll(".fila-explorer");
+        let seleccionada = null;
 
-  filas.forEach((row) => {
-    // click → seleccionar
-    row.addEventListener("click", () => {
-      if (seleccionada) seleccionada.classList.remove("selected");
-      document
-        .querySelectorAll(".acciones")
-        .forEach((a) => (a.style.visibility = "hidden"));
+        filas.forEach((row) => {
+          // CLICK = seleccionar
+          row.addEventListener("click", () => {
+            if (seleccionada) seleccionada.classList.remove("selected");
+            document
+              .querySelectorAll(".acciones")
+              .forEach((a) => (a.style.visibility = "hidden"));
 
-      seleccionada = row;
-      row.classList.add("selected");
+            seleccionada = row;
+            row.classList.add("selected");
 
-      const acciones = row.querySelector(".acciones");
-      if (acciones) acciones.style.visibility = "visible";
-    });
+            const acciones = row.querySelector(".acciones");
+            if (acciones) acciones.style.visibility = "visible";
+          });
 
-    // doble click → abrir
-    row.addEventListener("dblclick", () => {
-      const isDir = row.dataset.isdir === "1";
-      const path = row.dataset.path;
+          // DOBLE CLICK = abrir
+          row.addEventListener("dblclick", () => {
+            const isDir = row.dataset.isdir === "1";
+            const path = row.dataset.path;
 
-      if (isDir) {
-        window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
-      } else {
-        window.open(`/storage/view?path=${encodeURIComponent(path)}`, "_blank");
-      }
-    });
-  });
+            if (isDir) {
+              window.location.href = `/storage/ui?path=${encodeURIComponent(
+                path
+              )}`;
+            } else {
+              window.open(
+                `/storage/view?path=${encodeURIComponent(path)}`,
+                "_blank"
+              );
+            }
+          });
+        });
 
-  /* =========================
-   Eliminar archivo / carpeta
+        /* =========================
+   Eliminar normal (→ papelera)
 ========================= */
 
-  document.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
 
-      const path = btn.dataset.path;
-      if (!confirm("¿Eliminar " + path + "?")) return;
+            const path = btn.dataset.path;
+            if (!confirm("¿Enviar a papelera " + path + "?")) return;
 
-      await fetch(`/storage?path=${encodeURIComponent(path)}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+            await fetch(`/storage?path=${encodeURIComponent(path)}`, {
+              method: "DELETE",
+              credentials: "include",
+            });
 
-      window.location.reload();
-    });
-  });
-</script>
+            window.location.reload();
+          });
+        });
 
-{% endblock %}
+        /* =========================
+   Restaurar desde papelera
+========================= */
+
+        document.querySelectorAll(".btn-restore").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            const path = btn.dataset.path;
+            if (!confirm("¿Restaurar " + path + "?")) return;
+
+            await fetch(
+              `/storage/trash/restore?path=${encodeURIComponent(path)}`,
+              {
+                method: "POST",
+                credentials: "include",
+              }
+            );
+
+            location.reload();
+          });
+        });
+
+        /* =========================
+   Eliminar DEFINITIVO
+========================= */
+
+        document.querySelectorAll(".btn-delete-permanent").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            const path = btn.dataset.path;
+
+            if (
+              !confirm(
+                "ESTO NO SE PUEDE DESHACER\n\nEliminar definitivamente " +
+                  path +
+                  "?"
+              )
+            )
+              return;
+
+            await fetch(
+              `/storage/trash/delete?path=${encodeURIComponent(path)}`,
+              {
+                method: "DELETE",
+                credentials: "include",
+              }
+            );
+
+            location.reload();
+          });
+        });
+
+        /* =========================
+   Vaciar papelera
+========================= */
+
+        document
+          .getElementById("vaciarTrash")
+          ?.addEventListener("click", async () => {
+            if (
+              !confirm(
+                "Vaciar papelera DEFINITIVAMENTE?\n\nNo podrás recuperar nada."
+              )
+            )
+              return;
+
+            await fetch(`/storage/trash/empty`, {
+              method: "DELETE",
+              credentials: "include",
+            });
+
+            location.reload();
+          });
+      </script>
+
+      {% endblock %}
+    </div>
+  </div>
+</div>
