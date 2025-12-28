@@ -11,15 +11,18 @@
     </span>
   </div>
 
-  {% set raw = usage.percent if usage and usage.percent is not none else 0 %} {%
-  set p = raw|int %} {% if p < 0 %}{% set p = 0 %}{% endif %} {% if p > 100 %}{%
-  set p = 100 %}{% endif %}
+  {# Normalizamos el porcentaje para la barra #} {% set raw = usage.percent if
+  usage and usage.percent is not none else 0 %} {% set p = raw|int %} {% if p <
+  0 %}{% set p = 0 %}{% endif %} {% if p > 100 %}{% set p = 100 %}{% endif %}
 
   <div class="progress mt-2" style="height: 18px">
     <div
-      class="progress-bar {% if p < 70 %}bg-success {% elif p < 90 %}bg-warning {% else %}bg-danger {% endif %}"
+      class="progress-bar {% if p < 70 %}bg-success{% elif p < 90 %}bg-warning{% else %}bg-danger{% endif %}"
       role="progressbar"
       style="width: {{ p }}%;"
+      aria-valuenow="{{ p }}"
+      aria-valuemin="0"
+      aria-valuemax="100"
     >
       {{ p }}%
     </div>
@@ -36,7 +39,7 @@
     archivos del sistema {% endif %}
   </a>
 
-  <a href="/storage/trash" class="btn btn-outline-dark btn-sm"> Papelera </a>
+  <a href="/storage/trash/ui" class="btn btn-outline-dark btn-sm"> Papelera </a>
 </div>
 
 {% if trash_view %}
@@ -67,14 +70,39 @@
   </ol>
 </nav>
 
+<!-- ================= BARRA DE ACCIONES (SELECCIÓN) ================= -->
+<div
+  id="actionBar"
+  class="alert alert-primary d-none justify-content-between align-items-center"
+>
+  <span id="selectedCount">0 elementos seleccionados</span>
+
+  <div class="btn-group btn-group-sm" role="group">
+    {% if trash_view %}
+    <button id="restoreSelected" class="btn btn-success">Restaurar</button>
+    <button id="deletePermanent" class="btn btn-danger">
+      Eliminar definitivo
+    </button>
+    {% else %}
+    <button id="downloadZip" class="btn btn-primary">Descargar ZIP</button>
+    <button id="deleteSelected" class="btn btn-danger">
+      Enviar a papelera
+    </button>
+    {% endif %}
+    <button id="cancelSelection" class="btn btn-secondary">Cancelar</button>
+  </div>
+</div>
+
 <!-- ================= LISTADO ================= -->
 <table class="table table-hover align-middle" id="storageTable">
   <thead>
     <tr>
+      <th style="width: 40px">
+        <input type="checkbox" id="checkAll" />
+      </th>
       <th>Nombre</th>
       <th>Tipo</th>
       <th>Tamaño</th>
-      <th class="text-end">Acciones</th>
     </tr>
   </thead>
 
@@ -85,6 +113,10 @@
       data-path="{{ f.ruta }}"
       data-isdir="{{ '1' if f.es_dir else '0' }}"
     >
+      <td>
+        <input type="checkbox" class="check-row" />
+      </td>
+
       <td>
         {% if f.es_dir %}
         <i class="bi bi-folder-fill text-warning me-2"></i>
@@ -97,53 +129,6 @@
 
       <td>
         {% if f.tamano %} {{ "%.1f"|format(f.tamano / 1024) }} KB {% else %} -
-        {% endif %}
-      </td>
-
-      <td class="text-end acciones" style="visibility: hidden">
-        {% if f.es_dir and not trash_view %}
-        <a
-          href="/storage/zip?path={{ f.ruta }}"
-          class="btn btn-sm btn-outline-info"
-        >
-          Descargar ZIP
-        </a>
-        {% endif %} {% if not f.es_dir and not trash_view %}
-        <a
-          href="/storage/view?path={{ f.ruta }}"
-          target="_blank"
-          class="btn btn-sm btn-outline-primary"
-        >
-          Ver
-        </a>
-
-        <a
-          href="/storage/download?path={{ f.ruta }}"
-          class="btn btn-sm btn-success"
-        >
-          Descargar
-        </a>
-        {% endif %} {% if trash_view %}
-        <button
-          class="btn btn-sm btn-success btn-restore"
-          data-path="{{ f.ruta }}"
-        >
-          Restaurar
-        </button>
-
-        <button
-          class="btn btn-sm btn-danger btn-delete-permanent"
-          data-path="{{ f.ruta }}"
-        >
-          Eliminar definitivamente
-        </button>
-        {% else %}
-        <button
-          class="btn btn-sm btn-danger btn-delete"
-          data-path="{{ f.ruta }}"
-        >
-          Eliminar
-        </button>
         {% endif %}
       </td>
     </tr>
@@ -166,98 +151,215 @@
     background: #e8f2ff !important;
     box-shadow: inset 0 0 0 2px #3b82f6;
   }
+
+  @media (max-width: 768px) {
+    #storageTable td {
+      padding: 10px 4px;
+      font-size: 14px;
+    }
+
+    #actionBar {
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+    }
+
+    .breadcrumb {
+      font-size: 13px;
+    }
+  }
 </style>
 
 <!-- ================= JS ================= -->
 <script>
-  /* ----- Explorer Selection ----- */
+  // ---------- Utilidades ----------
+  function getSelected() {
+    return [...document.querySelectorAll(".check-row:checked")]
+      .map((c) => {
+        const tr = c.closest("tr");
+        return tr ? tr.dataset.path : null;
+      })
+      .filter(Boolean);
+  }
+
+  function updateSelectionUI() {
+    const actionBar = document.getElementById("actionBar");
+    const selectedCount = document.getElementById("selectedCount");
+    const selected = getSelected();
+
+    if (!actionBar || !selectedCount) return;
+
+    if (selected.length === 0) {
+      actionBar.classList.add("d-none");
+    } else {
+      actionBar.classList.remove("d-none");
+    }
+
+    selectedCount.innerText = selected.length + " elementos seleccionados";
+  }
+
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      alert("Error " + res.status + ":\n" + text);
+      throw new Error("HTTP " + res.status);
+    }
+    return res;
+  }
+
+  // ---------- Selección tipo Explorer ----------
   const filas = document.querySelectorAll(".fila-explorer");
-  let seleccionada = null;
+  const checkAll = document.getElementById("checkAll");
 
   filas.forEach((row) => {
-    row.addEventListener("click", () => {
-      if (seleccionada) seleccionada.classList.remove("selected");
+    const checkbox = row.querySelector(".check-row");
 
-      document
-        .querySelectorAll(".acciones")
-        .forEach((a) => (a.style.visibility = "hidden"));
+    row.addEventListener("click", (e) => {
+      if (e.target.tagName !== "INPUT") {
+        checkbox.checked = !checkbox.checked;
+      }
 
-      seleccionada = row;
-      row.classList.add("selected");
-      row.querySelector(".acciones").style.visibility = "visible";
+      if (checkbox.checked) {
+        row.classList.add("selected");
+      } else {
+        row.classList.remove("selected");
+      }
+
+      updateSelectionUI();
     });
 
+    // Doble click = abrir carpeta
     row.addEventListener("dblclick", () => {
+      const isDir = row.dataset.isdir === "1";
       const path = row.dataset.path;
-      if (row.dataset.isdir === "1")
-        location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
-      else
-        window.open(`/storage/view?path=${encodeURIComponent(path)}`, "_blank");
+      if (isDir && path) {
+        window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
+      }
     });
   });
 
-  /* ----- Eliminar a papelera ----- */
-  document.querySelectorAll(".btn-delete").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const path = btn.dataset.path;
+  checkAll?.addEventListener("change", () => {
+    document.querySelectorAll(".check-row").forEach((c) => {
+      c.checked = checkAll.checked;
+      const tr = c.closest("tr");
+      if (tr) {
+        if (checkAll.checked) {
+          tr.classList.add("selected");
+        } else {
+          tr.classList.remove("selected");
+        }
+      }
+    });
+    updateSelectionUI();
+  });
 
-      if (!confirm("¿Enviar a papelera " + path + "?")) return;
+  document.getElementById("cancelSelection")?.addEventListener("click", () => {
+    document.querySelectorAll(".check-row").forEach((c) => {
+      c.checked = false;
+      const tr = c.closest("tr");
+      if (tr) tr.classList.remove("selected");
+    });
+    if (checkAll) checkAll.checked = false;
+    updateSelectionUI();
+  });
 
-      await fetch(`/storage?path=${encodeURIComponent(path)}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+  // ---------- Acciones en vista NORMAL (no papelera) ----------
+  document
+    .getElementById("deleteSelected")
+    ?.addEventListener("click", async () => {
+      const paths = getSelected();
+      if (!paths.length) {
+        alert("Selecciona al menos un elemento.");
+        return;
+      }
 
+      if (!confirm("¿Enviar a la papelera " + paths.length + " elementos?")) {
+        return;
+      }
+
+      await postJSON("/storage/batch/delete", { paths });
       location.reload();
     });
-  });
 
-  /* ----- Restaurar ----- */
-  document.querySelectorAll(".btn-restore").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const path = btn.dataset.path;
+  document
+    .getElementById("downloadZip")
+    ?.addEventListener("click", async () => {
+      const paths = getSelected();
+      if (!paths.length) {
+        alert("Selecciona al menos un archivo o carpeta.");
+        return;
+      }
 
-      if (!confirm("¿Restaurar " + path + "?")) return;
+      const res = await postJSON("/storage/batch/zip", { paths });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
 
-      await fetch(`/storage/trash/restore?path=${encodeURIComponent(path)}`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "backup_storage.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    });
 
+  // ---------- Acciones en vista PAPELERA ----------
+  document
+    .getElementById("restoreSelected")
+    ?.addEventListener("click", async () => {
+      const paths = getSelected();
+      if (!paths.length) {
+        alert("Selecciona al menos un elemento.");
+        return;
+      }
+
+      if (!confirm("¿Restaurar " + paths.length + " elementos?")) {
+        return;
+      }
+
+      await postJSON("/storage/trash/batch-restore", { paths });
       location.reload();
     });
-  });
 
-  /* ----- Eliminación definitiva ----- */
-  document.querySelectorAll(".btn-delete-permanent").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const path = btn.dataset.path;
+  document
+    .getElementById("deletePermanent")
+    ?.addEventListener("click", async () => {
+      const paths = getSelected();
+      if (!paths.length) {
+        alert("Selecciona al menos un elemento.");
+        return;
+      }
 
       if (
         !confirm(
-          "ELIMINACIÓN DEFINITIVA\n\n" + path + "\n\nEsto NO se puede deshacer."
+          "ELIMINACIÓN DEFINITIVA\n\n" +
+            paths.length +
+            " elementos.\n\nEsto NO se puede deshacer."
         )
-      )
+      ) {
         return;
+      }
 
-      await fetch(`/storage/trash/delete?path=${encodeURIComponent(path)}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-
+      await postJSON("/storage/trash/batch-delete", { paths });
       location.reload();
     });
-  });
 
-  /* ----- Vaciar papelera ----- */
+  // ---------- Vaciar papelera ----------
   document
     .getElementById("vaciarTrash")
     ?.addEventListener("click", async () => {
       if (
         !confirm("¿Vaciar papelera definitivamente?\nNo podrás recuperar nada.")
-      )
+      ) {
         return;
+      }
 
       await fetch(`/storage/trash/empty`, {
         method: "DELETE",

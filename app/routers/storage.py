@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Request, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import APIRouter, Request, HTTPException, Query, Body
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pathlib import Path
 import os
 import shutil
@@ -17,6 +17,12 @@ TRASH_DIR = BASE_PATH / ".trash"
 TRASH_DIR.mkdir(parents=True, exist_ok=True)
 
 SYSTEM_NAMES = {".trash"}  # iremos añadiendo más nombres de carpetas del sistema
+
+PROTECTED_ROOTS = {
+    ".trash",          # papelera
+    "facturas_pdf",    # donde guardes PDFs
+    "certificados",    # certificados
+}
 
 def get_storage_usage() -> dict:
     used = 0
@@ -47,9 +53,11 @@ def require_admin(request: Request):
 
 
 def safe_path(rel_path: str) -> Path:
-    """
-    Seguridad: evita ../ traversal y garantiza que siempre esté en /data
-    """
+    rel_path = rel_path.strip("/")
+
+    if rel_path.startswith("data/"):
+        rel_path = rel_path.replace("data/", "", 1)
+
     if ".." in rel_path:
         raise HTTPException(400, "Ruta no válida")
 
@@ -90,22 +98,23 @@ def storage_delete(request: Request, path: str):
     if not final.exists():
         raise HTTPException(404, "No existe")
 
-    if final.is_dir():
-        shutil.rmtree(final)
-    else:
-        final.unlink()
+    # No borrar raíces críticas directamente
+    rel = final.relative_to(BASE_PATH)
 
-    return {"ok": True}
+    # No permitir borrar las carpetas raíz protegidas
+    if len(rel.parts) == 1 and rel.parts[0] in PROTECTED_ROOTS:
+        raise HTTPException(403, "Carpeta raíz del sistema protegida")
+
+    move_to_trash(final)
+
+    return {"ok": True, "moved_to_trash": str(rel)}
 
 
 DANGEROUS_EXT = {".exe", ".sh", ".bat", ".ps1", ".cmd", ".bd"}
 
 @router.get("/view")
 def storage_view(path: str = Query(...)):
-    real_path = Path(path).resolve()
-
-    if BASE_PATH not in real_path.parents and real_path != BASE_PATH:
-        raise HTTPException(403, "Acceso no permitido")
+    real_path = safe_path(path)
 
     if not real_path.exists():
         raise HTTPException(404, "Archivo no encontrado")
@@ -129,11 +138,7 @@ def storage_view(path: str = Query(...)):
 
 @router.get("/download")
 def storage_download(path: str = Query(...)):
-    real_path = Path(path).resolve()
-
-    # Seguridad → evitar salir de /data
-    if BASE_PATH not in real_path.parents and real_path != BASE_PATH:
-        raise HTTPException(403, "Acceso no permitido")
+    real_path = safe_path(path)
 
     if not real_path.exists():
         raise HTTPException(404, "Archivo no encontrado")
@@ -150,27 +155,45 @@ def storage_download(path: str = Query(...)):
         },
     )
 
-@router.get("")
-def storage_index(request: Request):
+@router.get("/trash/ui", response_class=HTMLResponse)
+def storage_trash_ui(request: Request):
     require_admin(request)
 
+    path = str(TRASH_DIR)
+
+    if not TRASH_DIR.exists():
+        elementos = []
+    else:
+        elementos = []
+        for p in TRASH_DIR.rglob("*"):
+            rel = p.relative_to(TRASH_DIR)
+            elementos.append({
+                "nombre": p.name,
+                "ruta": str(rel),
+                "tipo": "Carpeta" if p.is_dir() else "Archivo",
+                "tamano": None if p.is_dir() else p.stat().st_size,
+                "es_dir": p.is_dir(),
+            })
+
+    breadcrumb = [
+        {"nombre": "Almacenamiento", "ruta": "/storage/ui"},
+        {"nombre": "Papelera", "ruta": "/storage/trash/ui"}
+    ]
+
     usage = get_storage_usage()
-    items = []
 
-    if not BASE_PATH.exists():
-        return {"ok": True, "items": [], "usage": usage}
-
-    for p in BASE_PATH.rglob("*"):
-        rel = p.relative_to(BASE_PATH)
-
-        items.append({
-            "nombre": p.name,
-            "ruta": str(rel),
-            "tipo": "dir" if p.is_dir() else "file",
-            "tamano": p.stat().st_size if p.is_file() else None
-        })
-
-    return {"ok": True, "items": items, "usage": usage}
+    return templates.TemplateResponse(
+        "storage/list.html",
+        {
+            "request": request,
+            "path": "/data/.trash",
+            "elementos": elementos,
+            "breadcrumb": breadcrumb,
+            "show_hidden": True,
+            "trash_view": True,
+            "usage": usage,
+        }
+    )
 
 def move_to_trash(path: Path) -> Path:
     """
@@ -184,28 +207,7 @@ def move_to_trash(path: Path) -> Path:
     shutil.move(str(path), str(destino))
     return destino
 
-PROTECTED_ROOTS = {
-    ".trash",          # papelera
-    "facturas_pdf",    # donde guardes PDFs
-    "certificados",    # certificados
-}
 
-@router.delete("")
-def storage_delete(request: Request, path: str):
-    require_admin(request)
-    final = safe_path(path)
-
-    if not final.exists():
-        raise HTTPException(404, "No existe")
-
-    # No borrar roots críticos directamente
-    rel = final.relative_to(BASE_PATH)
-    if rel.parts and rel.parts[0] in PROTECTED_ROOTS and rel == BASE_PATH / rel.parts[0]:
-        raise HTTPException(403, "Carpeta raíz del sistema protegida")
-
-    move_to_trash(final)
-
-    return {"ok": True, "moved_to_trash": str(rel)}
 
 @router.get("/trash")
 def storage_trash(request: Request):
@@ -241,6 +243,84 @@ def storage_trash_restore(request: Request, path: str = Query(...)):
 
     return {"ok": True, "restored": path}
 
+@router.post("/trash/batch-restore")
+def storage_trash_batch_restore(request: Request, payload: dict = Body(...)):
+    require_admin(request)
+
+    paths = payload.get("paths") or []
+    if not isinstance(paths, list) or not paths:
+        raise HTTPException(400, "Debe indicar al menos una ruta")
+
+    restored = []
+
+    for rel in paths:
+        src = (TRASH_DIR / rel).resolve()
+
+        if TRASH_DIR not in src.parents and src != TRASH_DIR:
+            continue
+        if not src.exists():
+            continue
+
+        dest = BASE_PATH / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dest))
+        restored.append(rel)
+
+    return {"ok": True, "restored": restored}
+
+@router.post("/batch/delete")
+def storage_batch_delete(request: Request, payload: dict = Body(...)):
+    require_admin(request)
+
+    paths = payload.get("paths") or []
+    if not isinstance(paths, list) or not paths:
+        raise HTTPException(400, "Debe indicar al menos una ruta")
+
+    moved = []
+
+    for raw in paths:
+        final = safe_path(raw)
+
+        if not final.exists():
+            continue
+
+        rel = final.relative_to(BASE_PATH)
+
+        # Proteger raíces críticas
+        if rel.parts and rel.parts[0] in PROTECTED_ROOTS and rel == Path(rel.parts[0]):
+            continue
+
+        move_to_trash(final)
+        moved.append(str(rel))
+
+    return {"ok": True, "moved": moved}
+
+@router.post("/trash/batch-delete")
+def storage_trash_batch_delete(request: Request, payload: dict = Body(...)):
+    require_admin(request)
+
+    paths = payload.get("paths") or []
+    if not isinstance(paths, list) or not paths:
+        raise HTTPException(400, "Debe indicar al menos una ruta")
+
+    deleted = 0
+
+    for rel in paths:
+        target = (TRASH_DIR / rel).resolve()
+
+        if TRASH_DIR not in target.parents and target != TRASH_DIR:
+            continue
+        if not target.exists():
+            continue
+
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+
+        deleted += 1
+
+    return {"ok": True, "deleted": deleted}
 
 @router.delete("/trash/empty")
 def storage_trash_empty(request: Request):
@@ -339,7 +419,6 @@ def storage_zip_facturas(
     if not year_dir.exists():
         raise HTTPException(404, "No hay PDFs para ese año")
 
-    # En memoria (si algún año pesa mucho mejor hacerlo a fichero temporal)
     mem_file = BytesIO()
     with zipfile.ZipFile(mem_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
         for p in year_dir.rglob("*.pdf"):
@@ -349,10 +428,46 @@ def storage_zip_facturas(
     mem_file.seek(0)
     filename = f"facturas_{year}.zip"
 
-    return FileResponse(
+    return StreamingResponse(
         mem_file,
         media_type="application/zip",
-        filename=filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
+
+@router.post("/batch/zip")
+def storage_batch_zip(request: Request, payload: dict = Body(...)):
+    require_admin(request)
+
+    paths = payload.get("paths") or []
+    if not isinstance(paths, list) or not paths:
+        raise HTTPException(400, "Debe indicar al menos una ruta")
+
+    mem_file = BytesIO()
+
+    with zipfile.ZipFile(mem_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for raw in paths:
+            base = safe_path(raw)
+
+            if not base.exists():
+                continue
+
+            if base.is_dir():
+                for p in base.rglob("*"):
+                    if p.is_file():
+                        arcname = p.relative_to(BASE_PATH)
+                        zf.write(p, arcname=str(arcname))
+            else:
+                arcname = base.relative_to(BASE_PATH)
+                zf.write(base, arcname=str(arcname))
+
+    mem_file.seek(0)
+    filename = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+
+    return StreamingResponse(
+        mem_file,
+        media_type="application/zip",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"'
         },
