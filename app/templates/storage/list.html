@@ -171,14 +171,34 @@
 </style>
 
 <!-- ================= JS ================= -->
+
 <script>
-  // ---------- Utilidades ----------
+  // ======================
+  //   FLAGS DE ENTORNO
+  // ======================
+
+  // ======================
+  //   UTILIDADES
+  // ======================
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      alert("Error " + res.status + ":\n" + text);
+      throw new Error("HTTP " + res.status);
+    }
+    return res;
+  }
+
   function getSelected() {
     return [...document.querySelectorAll(".check-row:checked")]
-      .map((c) => {
-        const tr = c.closest("tr");
-        return tr ? tr.dataset.path : null;
-      })
+      .map((c) => c.closest("tr")?.dataset.path)
       .filter(Boolean);
   }
 
@@ -197,92 +217,91 @@
 
     selectedCount.innerText = selected.length + " elementos seleccionados";
   }
+</script>
 
-  async function postJSON(url, payload) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      alert("Error " + res.status + ":\n" + text);
-      throw new Error("HTTP " + res.status);
-    }
-    return res;
-  }
-
-  // ---------- Selección tipo Explorer ----------
+<script>
+  // ======================
+  //   SELECCIÓN
+  // ======================
   const filas = document.querySelectorAll(".fila-explorer");
   const checkAll = document.getElementById("checkAll");
+  const IS_TRASH_VIEW = document.body.dataset.trash === "1";
 
-  filas.forEach((row) => {
-    const checkbox = row.querySelector(".check-row");
-
-    row.addEventListener("click", (e) => {
-      if (e.target.tagName !== "INPUT") {
-        checkbox.checked = !checkbox.checked;
-      }
-
-      if (checkbox.checked) {
-        row.classList.add("selected");
-      } else {
-        row.classList.remove("selected");
-      }
-
-      updateSelectionUI();
+  function refreshRowSelectionVisual() {
+    document.querySelectorAll(".fila-explorer").forEach((row) => {
+      const cb = row.querySelector(".check-row");
+      if (cb && cb.checked) row.classList.add("selected");
+      else row.classList.remove("selected");
     });
+  }
 
-    // Doble click = abrir carpeta
-    row.addEventListener("dblclick", () => {
-      const isDir = row.dataset.isdir === "1";
-      const path = row.dataset.path;
-      if (isDir && path) {
-        window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
-      }
+  // Individual
+  document.querySelectorAll(".check-row").forEach((c) => {
+    c.addEventListener("change", () => {
+      refreshRowSelectionVisual();
+      updateSelectionUI();
     });
   });
 
+  // Select all
   checkAll?.addEventListener("change", () => {
     document.querySelectorAll(".check-row").forEach((c) => {
       c.checked = checkAll.checked;
-      const tr = c.closest("tr");
-      if (tr) {
-        if (checkAll.checked) {
-          tr.classList.add("selected");
-        } else {
-          tr.classList.remove("selected");
-        }
+    });
+
+    refreshRowSelectionVisual();
+    updateSelectionUI();
+  });
+
+  // ESC limpia selección
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document
+        .querySelectorAll(".check-row")
+        .forEach((c) => (c.checked = false));
+
+      if (checkAll) checkAll.checked = false;
+
+      refreshRowSelectionVisual();
+      updateSelectionUI();
+    }
+  });
+
+  // Doble clic abre (solo fuera de papelera)
+  filas.forEach((row) => {
+    row.addEventListener("dblclick", () => {
+      const isDir = row.dataset.isdir === "1";
+      const path = row.dataset.path;
+
+      if (isDir) {
+        window.location.href = `/storage/ui?path=${encodeURIComponent(path)}`;
+      } else if (!IS_TRASH_VIEW) {
+        window.open(`/storage/view?path=${encodeURIComponent(path)}`, "_blank");
       }
     });
-    updateSelectionUI();
   });
 
+  // Cancelar
   document.getElementById("cancelSelection")?.addEventListener("click", () => {
-    document.querySelectorAll(".check-row").forEach((c) => {
-      c.checked = false;
-      const tr = c.closest("tr");
-      if (tr) tr.classList.remove("selected");
-    });
+    document.querySelectorAll(".check-row").forEach((c) => (c.checked = false));
+
     if (checkAll) checkAll.checked = false;
+
+    refreshRowSelectionVisual();
     updateSelectionUI();
   });
+</script>
 
-  // ---------- Acciones en vista NORMAL (no papelera) ----------
+<script>
+  // ---------- ACCIONES NORMAL ----------
   document
     .getElementById("deleteSelected")
     ?.addEventListener("click", async () => {
       const paths = getSelected();
-      if (!paths.length) {
-        alert("Selecciona al menos un elemento.");
-        return;
-      }
+      if (!paths.length) return alert("Selecciona al menos un elemento.");
 
-      if (!confirm("¿Enviar a la papelera " + paths.length + " elementos?")) {
+      if (!confirm("¿Enviar a papelera " + paths.length + " elementos?"))
         return;
-      }
 
       await postJSON("/storage/batch/delete", { paths });
       location.reload();
@@ -292,12 +311,11 @@
     .getElementById("downloadZip")
     ?.addEventListener("click", async () => {
       const paths = getSelected();
-      if (!paths.length) {
-        alert("Selecciona al menos un archivo o carpeta.");
-        return;
-      }
+      if (!paths.length)
+        return alert("Selecciona al menos un archivo o carpeta.");
 
       const res = await postJSON("/storage/batch/zip", { paths });
+
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
 
@@ -307,22 +325,19 @@
       document.body.appendChild(a);
       a.click();
       a.remove();
+
       window.URL.revokeObjectURL(url);
     });
-
-  // ---------- Acciones en vista PAPELERA ----------
+</script>
+<script>
+  // ---------- ACCIONES PAPELERA ----------
   document
     .getElementById("restoreSelected")
     ?.addEventListener("click", async () => {
       const paths = getSelected();
-      if (!paths.length) {
-        alert("Selecciona al menos un elemento.");
-        return;
-      }
+      if (!paths.length) return alert("Selecciona al menos un elemento.");
 
-      if (!confirm("¿Restaurar " + paths.length + " elementos?")) {
-        return;
-      }
+      if (!confirm("¿Restaurar " + paths.length + " elementos?")) return;
 
       await postJSON("/storage/trash/batch-restore", { paths });
       location.reload();
@@ -332,10 +347,7 @@
     .getElementById("deletePermanent")
     ?.addEventListener("click", async () => {
       const paths = getSelected();
-      if (!paths.length) {
-        alert("Selecciona al menos un elemento.");
-        return;
-      }
+      if (!paths.length) return alert("Selecciona al menos un elemento.");
 
       if (
         !confirm(
@@ -343,23 +355,20 @@
             paths.length +
             " elementos.\n\nEsto NO se puede deshacer."
         )
-      ) {
+      )
         return;
-      }
 
       await postJSON("/storage/trash/batch-delete", { paths });
       location.reload();
     });
 
-  // ---------- Vaciar papelera ----------
   document
     .getElementById("vaciarTrash")
     ?.addEventListener("click", async () => {
       if (
         !confirm("¿Vaciar papelera definitivamente?\nNo podrás recuperar nada.")
-      ) {
+      )
         return;
-      }
 
       await fetch(`/storage/trash/empty`, {
         method: "DELETE",
@@ -369,5 +378,4 @@
       location.reload();
     });
 </script>
-
 {% endblock %}
