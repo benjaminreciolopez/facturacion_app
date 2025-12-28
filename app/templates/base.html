@@ -51,7 +51,7 @@
       <!-- ====================== SIDEBAR ====================== -->
       <aside
         id="sidebar"
-        class="fixed lg:relative top-0 left-0 h-full lg:min-h-screen w-72 bg-white shadow-xl border-r border-gray-200/70 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 z-50 p-6 overflow-y-auto"
+        class="fixed top-0 left-0 h-full w-72 bg-white shadow-xl border-r border-gray-200/70 transform -translate-x-full transition-transform duration-300 z-50 p-6 overflow-y-auto"
       >
         <div class="absolute inset-0 pointer-events-none">
           <div
@@ -115,10 +115,7 @@
         >
           <div class="flex items-center gap-3">
             <!-- BOTÓN SOLO MÓVIL -->
-            <button
-              id="openSidebar"
-              class="lg:hidden text-3xl mr-2 focus:outline-none"
-            >
+            <button id="openSidebar" class="text-3xl mr-2 focus:outline-none">
               ☰
             </button>
 
@@ -187,7 +184,7 @@
     <!-- ================= OVERLAY MÓVIL ================= -->
     <div
       id="sidebarOverlay"
-      class="fixed inset-0 bg-black/40 hidden z-40 lg:hidden"
+      class="fixed inset-0 bg-black/40 hidden z-40"
     ></div>
 
     <!-- ================= SCRIPTS ================= -->
@@ -294,6 +291,9 @@
           submenu?.classList.add("hidden");
           arrow.textContent = "▾";
         }
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeMenu();
       });
     </script>
   </body>
