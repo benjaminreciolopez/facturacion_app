@@ -183,9 +183,14 @@ def facturas_list(
     # ===============================
     # ESTADO FISCAL + FLAGS
     # ===============================
-    for f in facturas:
-        c = auditoria_counts.get(f.id, {"ok": 0, "bloqueado": 0, "error": 0})
 
+    resumen_fiscal = {}
+    verifactu_ok = {}
+    enviada_email = {}
+
+    for f in facturas:
+        # Auditoría fiscal
+        c = auditoria_counts.get(f.id, {"ok": 0, "bloqueado": 0, "error": 0})
         estado_fiscal = calcular_estado_fiscal(**c)
 
         resumen_fiscal[f.id] = {
@@ -193,12 +198,24 @@ def facturas_list(
             **c,
         }
 
+    # ===============================
+    # VERIFACTU OK SOLO SI:
+    # - VALIDADA
+    # - tiene hash verifactu
+    # - fiscal OK
+    # ===============================
     for f in facturas:
-        fiscal = resumen_fiscal.get(f.id)
-        verifactu_ok[f.id] = fiscal and fiscal["estado"] == "OK"
+        verifactu_ok[f.id] = (
+            f.estado == "VALIDADA"
+            and getattr(f, "verifactu_hash", None)
+            and resumen_fiscal.get(f.id, {}).get("estado") == "OK"
+        )
 
-        # 🔥 marcar enviada email
-    enviada_email[f.id] = f.id in enviados
+    # ===============================
+    # ENVIADA EMAIL
+    # ===============================
+    for f in facturas:
+        enviada_email[f.id] = f.id in enviados
 
     return templates.TemplateResponse(
         "facturas/list.html",
