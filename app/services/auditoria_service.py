@@ -21,6 +21,7 @@ def auditar(
     request: Request | None = None,
     empresa_id: int | None = None,
     payload: dict | None = None,
+    nivel_evento: str = "INFO",   # << NUEVO
 ):
     """
     Registra un evento de auditoría de forma segura.
@@ -35,7 +36,6 @@ def auditar(
             empresa_id = request.session.get("empresa_id")
 
         if empresa_id is None:
-            # Si no sabemos empresa → no auditamos
             return
 
         # =========================
@@ -71,7 +71,8 @@ def auditar(
             ip=ip,
             user_agent=user_agent,
             payload=payload,
-            created_at=datetime.utcnow(),   # << CORRECTO
+            nivel=nivel_evento,          # << IMPORTANTE
+            created_at=datetime.utcnow(),
         )
 
         session.add(evento)
