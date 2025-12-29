@@ -72,22 +72,16 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       </button>
 
       {# ========================= ESTADO: VALIDADA ==========================
-      #} {% elif f.estado == "VALIDADA" %} {# PDF: si ya existe ruta_pdf → Ver
-      PDF, si no → Generar / Ver PDF #} {% if f.ruta_pdf %}
-      <a
-        href="{{ f.ruta_pdf }}"
-        class="btn btn-sm btn-outline-secondary"
-        target="_blank"
-      >
+      #} {% elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
+      <a href="{{ f.ruta_pdf }}" class="btn btn-sm btn-outline-secondary">
         Ver PDF
       </a>
       {% else %}
       <a
         href="/facturas/{{ f.id }}/generar-pdf"
         class="btn btn-sm btn-outline-secondary"
-        target="_blank"
       >
-        Generar / Ver PDF
+        Ver PDF
       </a>
       {% endif %}
 
@@ -110,22 +104,17 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
         Anular
       </button>
       {% endif %} {# ========================= ESTADO: ANULADA
-      ========================== #} {% elif f.estado == "ANULADA" %} {# Igual
-      comportamiento PDF que VALIDADA #} {% if f.ruta_pdf %}
-      <a
-        href="{{ f.ruta_pdf }}"
-        class="btn btn-sm btn-outline-secondary"
-        target="_blank"
-      >
+      ========================== #} {% elif f.estado == "ANULADA" %} {% if
+      f.ruta_pdf %}
+      <a href="{{ f.ruta_pdf }}" class="btn btn-sm btn-outline-secondary">
         Ver PDF
       </a>
       {% else %}
       <a
         href="/facturas/{{ f.id }}/generar-pdf"
         class="btn btn-sm btn-outline-secondary"
-        target="_blank"
       >
-        Generar / Ver PDF
+        Ver PDF
       </a>
       {% endif %}
 
