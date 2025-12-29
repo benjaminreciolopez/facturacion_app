@@ -341,8 +341,8 @@ def generar_factura_pdf(
             qr_size = qr_size_mm * mm
 
             qr_x = ancho - margen_x - qr_size
-            qr_y = y_totales + 120
-
+            qr_y = y_totales + (qr_size / 2)
+            
             dibujar_qr(
                 c,
                 url_qr,
@@ -355,31 +355,12 @@ def generar_factura_pdf(
             c.drawRightString(
                 ancho - margen_x,
                 qr_y - 10,
-                "Factura verificable en la sede electrónica de la AEAT",
+                "Sistema de Facturación Verificable (Veri*Factu)",
             )
 
         except Exception as e:
             print("ERROR QR VERIFACTU:", e)
-            qr_y = None  # seguridad extra
-
-
-    # =============================
-    # HASH VERI*FACTU IMPRESO (COMPLETO, EN 2 LÍNEAS)
-    # =============================
-    if factura.verifactu_hash and qr_y is not None:
-        h = factura.verifactu_hash.strip()
-        c.setFont("Helvetica", 7)
-
-        # 64 hex -> 2 líneas de 32 + 32
-        h1, h2 = h[:32], h[32:]
-
-        c.drawRightString(
-            ancho - margen_x,
-            qr_y - 44,
-            "Sistema de facturación verificable (Veri*Factu)",
-        )
-        c.drawRightString(ancho - margen_x, qr_y - 32, f"Hash: {h1}")
-        c.drawRightString(ancho - margen_x, qr_y - 22, h2)
+            qr_y = None
 
     # =============================
     # MENSAJE IVA ENCIMA DE TOTALES # Mensaje IVA informativo (NO forma parte del hash Veri*Factu)
