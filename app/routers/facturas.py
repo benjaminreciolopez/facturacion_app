@@ -65,46 +65,47 @@ def facturas_list(
         query = query.where(Factura.fecha <= fecha_hasta)
 
     # -------------------------------
-    # Obtener facturas sin imponer orden SQL
+    # Facturas
     # -------------------------------
     facturas = session.exec(query).all()
 
+    # ===============================
+    # VERIFICAR PDF EXISTE
+    # ===============================
+    for f in facturas:
+        f.verifactu_ok = False   # lo rellenaremos luego vía fiscal
+        f.pdf_existe = False
+
+        if f.ruta_pdf:
+            try:
+                if f.ruta_pdf.startswith("/storage/view?path="):
+                    real_path = f.ruta_pdf.replace("/storage/view?path=", "")
+                    f.pdf_existe = Path(real_path).exists()
+            except:
+                f.pdf_existe = False
+
     # -------------------------------
-    # ORDENACIÓN INTELIGENTE POR NÚMERO
+    # ORDENACIÓN POR NÚMERO
     # -------------------------------
     def parse_numero(numero: str):
-        """
-        Devuelve una tupla ordenable:
-        (
-            año (int o 0),
-            correlativo (int o 0),
-            es_rectificativa (0 normal / 1 rectificativa)
-        )
-        """
         if not numero:
             return (0, 0, 0)
 
         num = numero.strip().upper()
-
-        # Detectar rectificativa
         es_rect = num.endswith("R")
         if es_rect:
             num = num[:-1]
 
         partes = num.split("-")
-
         year = 0
         correlativo = 0
 
-        # Detectar año (4 dígitos)
         for p in partes:
             if len(p) == 4 and p.isdigit():
                 year = int(p)
 
-        # Intentar correlativo
-        ultima = partes[-1]
         try:
-            correlativo = int(ultima)
+            correlativo = int(partes[-1])
         except:
             correlativo = 0
 
@@ -113,7 +114,7 @@ def facturas_list(
     facturas = sorted(facturas, key=lambda f: parse_numero(f.numero or ""))
 
     # --------------------------------
-    # RESTO DEL CÓDIGO IGUAL
+    # CLIENTES
     # --------------------------------
     clientes = session.exec(
         select(Cliente)
@@ -127,6 +128,9 @@ def facturas_list(
     resumen_fiscal = {}
 
     if factura_ids:
+        # ===============================
+        # CONTADORES FISCALES
+        # ===============================
         rows = session.exec(
             select(
                 Auditoria.entidad_id,
@@ -148,6 +152,29 @@ def facturas_list(
             for r in rows
         }
 
+        # ===============================
+        # 📧 ENVÍOS DE EMAIL
+        # ===============================
+        enviados = {
+            r[0]
+            for r in session.exec(
+                select(Auditoria.entidad_id)
+                .where(Auditoria.entidad == "FACTURA")
+                .where(Auditoria.entidad_id.in_(factura_ids))
+                .where(Auditoria.company_id == empresa_id)
+                .where(
+                    Auditoria.accion.in_(["EMAIL", "EMAIL_ENVIADO"])
+                )  # según cómo lo tengas auditado
+                .where(Auditoria.resultado == "OK")
+            ).all()
+        }
+
+    else:
+        enviados = set()
+
+    # ===============================
+    # ESTADO FISCAL + FLAGS
+    # ===============================
     for f in facturas:
         c = auditoria_counts.get(f.id, {"ok": 0, "bloqueado": 0, "error": 0})
 
@@ -157,6 +184,12 @@ def facturas_list(
             "estado": estado_fiscal,
             **c,
         }
+
+        # 🔥 marcar VeriFactu correcto
+        f.verifactu_ok = estado_fiscal == "OK"
+
+        # 🔥 marcar enviada email
+        f.enviada_email = f.id in enviados
 
     return templates.TemplateResponse(
         "facturas/list.html",
@@ -174,7 +207,6 @@ def facturas_list(
             },
         },
     )
-
 @router.get("/form", response_class=HTMLResponse)
 def factura_form(
     request: Request,
@@ -966,6 +998,69 @@ def factura_generar_pdf(
     # ============================
 
     return RedirectResponse("/facturas", status_code=303)
+@router.post("/{factura_id}/generar-pdf")
+def api_generar_pdf(
+    factura_id: int,
+    request: Request,
+    session: Session = Depends(get_session)
+):
+    empresa_id = get_empresa_id(request)
+    if not empresa_id:
+        return {"ok": False, "error": "Sesión no iniciada"}
+
+    factura = session.get(Factura, factura_id)
+    if not factura or factura.empresa_id != empresa_id:
+        return {"ok": False, "error": "Factura no encontrada"}
+
+    # ============================
+    # Emisor + Config
+    # ============================
+    emisor = session.exec(
+        select(Emisor).where(Emisor.empresa_id == empresa_id)
+    ).first()
+
+    if not emisor:
+        return {"ok": False, "error": "No hay configuración del emisor"}
+
+    config = session.exec(
+        select(ConfiguracionSistema).where(
+            ConfiguracionSistema.empresa_id == empresa_id
+        )
+    ).first()
+
+    # ============================
+    # Generar ruta segura
+    # ============================
+    try:
+        base_dir, ruta_fisica = resolver_ruta_pdf_factura(factura, emisor)
+
+        ruta_pdf, _ = generar_factura_pdf(
+            factura=factura,
+            lineas=session.exec(
+                select(LineaFactura).where(LineaFactura.factura_id == factura_id)
+            ).all(),
+            emisor=emisor,
+            config=config,
+            incluir_mensaje_iva=True,
+        )
+
+        view_url = f"/storage/view?path={ruta_fisica}"
+
+        factura.ruta_pdf = view_url
+        session.add(factura)
+        session.commit()
+
+        return {
+            "ok": True,
+            "ruta_pdf": view_url
+        }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": f"No fue posible generar el PDF: {e}"
+        }
+
 
 @router.get("/{factura_id}/delete", response_class=HTMLResponse)
 @bloquear_si_factura_inmutable()

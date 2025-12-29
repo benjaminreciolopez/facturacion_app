@@ -5,35 +5,57 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
 
 <tr
   data-factura='{{ {
-      "id": f.id,
-      "numero": f.numero,
-      "cliente": (f.cliente.nombre if f.cliente else "-"),
-      "fecha": (f.fecha.isoformat() if f.fecha else None),
-      "total": f.total,
-      "estado": f.estado,
-      "ruta_pdf": f.ruta_pdf
-    } | tojson | safe }}'
+        "id": f.id,
+        "numero": f.numero,
+        "cliente": (f.cliente.nombre if f.cliente else "-"),
+        "fecha": (f.fecha.isoformat() if f.fecha else None),
+        "total": f.total,
+        "estado": f.estado,
+        "ruta_pdf": f.ruta_pdf
+      } | tojson | safe }}'
 >
+  <!-- Nº -->
   <td>{{ f.numero or "Borrador" }}</td>
 
+  <!-- Cliente -->
   <td>{{ f.cliente.nombre if f.cliente else "-" }}</td>
 
+  <!-- Fecha -->
   <td>
     {% if f.fecha %} {{ f.fecha.strftime("%d/%m/%Y") }} {% else %} - {% endif %}
   </td>
 
+  <!-- Estado + VeriFactu + Envío email -->
   <td>
     {% if f.estado == "BORRADOR" %}
     <span class="badge bg-secondary">Borrador</span>
+
     {% elif f.estado == "VALIDADA" %}
-    <span class="badge bg-success">Validada</span>
+    <div class="d-flex flex-column align-items-start gap-1">
+      <span class="badge bg-success">Validada</span>
+
+      {# VeriFactu solo si verifactu_ok #} {% if f.verifactu_ok %}
+      <span class="text-success small d-inline-flex align-items-center gap-1">
+        <span class="verifactu-dot"></span>
+        VeriFactu
+      </span>
+      {% endif %} {# Enviada por email #} {% if f.enviada_email %}
+      <span class="text-primary small d-inline-flex align-items-center gap-1">
+        📧 Enviada al cliente
+      </span>
+      {% endif %}
+    </div>
+
     {% elif f.estado == "ANULADA" %}
     <span class="badge bg-danger">Anulada</span>
+
     {% else %} {{ f.estado }} {% endif %}
   </td>
 
+  <!-- Total -->
   <td>{{ "%.2f"|format(f.total) }} €</td>
 
+  <!-- Estado fiscal resumen -->
   <td>
     {% if fiscal %} {% if fiscal.estado == "OK" %}
     <span class="badge bg-success">OK</span>
@@ -46,6 +68,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
     {% endif %}
   </td>
 
+  <!-- Acciones -->
   <td class="acciones text-end" style="visibility: hidden">
     <div class="acciones-wrap">
       {# ========================= ESTADO: BORRADOR ==========================
@@ -71,18 +94,23 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
         Validar
       </button>
 
-      {# ========================= ESTADO: VALIDADA ==========================
-      #} {% elif f.estado == "VALIDADA" %} {% if f.ruta_pdf %}
-      <a href="{{ f.ruta_pdf }}" class="btn btn-sm btn-outline-secondary">
-        Ver PDF
-      </a>
-      {% else %}
-      <a
-        href="/facturas/{{ f.id }}/generar-pdf"
-        class="btn btn-sm btn-outline-secondary"
+      {# ========================= ESTADO: VALIDADA ==========================#}
+      {% elif f.estado == "VALIDADA" %} {% if f.pdf_existe %}
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary btn-ver-pdf"
+        data-pdf="{{ f.ruta_pdf }}"
       >
         Ver PDF
-      </a>
+      </button>
+      {% else %}
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary btn-generar-pdf"
+        data-id="{{ f.id }}"
+      >
+        Generar PDF
+      </button>
       {% endif %}
 
       <button
@@ -103,19 +131,24 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       >
         Anular
       </button>
-      {% endif %} {# ========================= ESTADO: ANULADA
-      ========================== #} {% elif f.estado == "ANULADA" %} {% if
-      f.ruta_pdf %}
-      <a href="{{ f.ruta_pdf }}" class="btn btn-sm btn-outline-secondary">
-        Ver PDF
-      </a>
-      {% else %}
-      <a
-        href="/facturas/{{ f.id }}/generar-pdf"
-        class="btn btn-sm btn-outline-secondary"
+      {% endif %} {# =========================
+      ESTADO:ANULADA========================== #} {% elif f.estado == "ANULADA"
+      %} {% if f.pdf_existe %}
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary btn-ver-pdf"
+        data-pdf="{{ f.ruta_pdf }}"
       >
         Ver PDF
-      </a>
+      </button>
+      {% else %}
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary btn-generar-pdf"
+        data-id="{{ f.id }}"
+      >
+        Generar PDF
+      </button>
       {% endif %}
 
       <button

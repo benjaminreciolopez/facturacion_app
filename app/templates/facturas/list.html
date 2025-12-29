@@ -118,6 +118,28 @@
     </div>
   </div>
 </div>
+<!-- =========================
+     MODAL PREVISUALIZACIÓN PDF
+========================= -->
+<div id="pdfModal" class="modal-overlay pdf-modal hidden" style="display: none">
+  <div class="modal-dialog-custom pdf-modal-dialog">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold">Previsualización factura (PDF)</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-danger"
+        onclick="cerrarPdfModal()"
+      >
+        Cerrar
+      </button>
+    </div>
+
+    <iframe
+      id="pdfFrame"
+      style="width: 100%; height: 80vh; border: none; background: #f8fafc"
+    ></iframe>
+  </div>
+</div>
 
 <style>
   /* ===========================================================
@@ -268,11 +290,77 @@
     flex-wrap: nowrap;
   }
 </style>
+<style>
+  /* Punto verde VeriFactu */
+  .verifactu-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background-color: #16a34a;
+    display: inline-block;
+  }
+  .verifactu-ok {
+    background: #16a34a;
+  } /* verde */
+  .verifactu-warn {
+    background: #eab308;
+  } /* amarillo */
+  .verifactu-error {
+    background: #dc2626;
+  } /* rojo */
+
+  /* Modal PDF: animación */
+  .pdf-modal {
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+
+  .pdf-modal-dialog {
+    max-width: 900px;
+    width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+
+  /* Estado inicial (oculto) */
+  .pdf-modal-dialog {
+    transform: translateY(40px);
+    opacity: 0;
+    transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+  }
+
+  /* Estado visible (animado) */
+  .pdf-modal.show .pdf-modal-dialog {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* Hidden helper */
+  .hidden {
+    display: none !important;
+  }
+
+  @media (max-width: 768px) {
+    .pdf-modal-dialog {
+      width: 100%;
+      height: 100%;
+      max-height: 100vh;
+      border-radius: 0;
+    }
+
+    #pdfFrame {
+      height: 100%;
+    }
+  }
+</style>
 
 <script>
   /* ============================================================
-       ESTADO GLOBAL
-    ============================================================ */
+             ESTADO GLOBAL
+          ============================================================ */
   let facturaSeleccionada = null;
   let FACTURA_A_VALIDAR = null;
   let FACTURA_ROW_A_VALIDAR = null;
@@ -285,8 +373,8 @@
   const SORT_STORAGE_KEY = "facturas_sort_state";
 
   /* ===============================
-     PERSISTENCIA ORDEN
-  =============================== */
+           PERSISTENCIA ORDEN
+        =============================== */
 
   function loadSortState() {
     try {
@@ -303,8 +391,8 @@
   }
 
   /* ============================================================
-       UTILIDADES
-    ============================================================ */
+             UTILIDADES
+          ============================================================ */
 
   function getFacturaData(tr) {
     if (!tr) return {};
@@ -445,8 +533,8 @@
   }
 
   /* ============================================================
-       ORDENACIÓN DE LA TABLA
-    ============================================================ */
+             ORDENACIÓN DE LA TABLA
+          ============================================================ */
 
   function ordenarPor(key, direction) {
     const tbody = document.getElementById("facturasTabla");
@@ -479,8 +567,8 @@
   }
 
   /* ============================================================
-       BUSCADOR
-    ============================================================ */
+             BUSCADOR
+          ============================================================ */
 
   function inicializarBuscador() {
     const input = document.getElementById("searchInput");
@@ -506,8 +594,8 @@
   }
 
   /* ============================================================
-       GESTIÓN DE CABECERAS (CLICK PARA ORDENAR)
-    ============================================================ */
+             GESTIÓN DE CABECERAS (CLICK PARA ORDENAR)
+          ============================================================ */
 
   function inicializarOrdenacionCabeceras() {
     const thead = document.querySelector("#tablaFacturas thead");
@@ -537,8 +625,8 @@
   }
 
   /* ============================================================
-       MODAL DETALLE FACTURA
-    ============================================================ */
+             MODAL DETALLE FACTURA
+          ============================================================ */
 
   function abrirModalDetalle(tr) {
     const data = getFacturaData(tr);
@@ -582,8 +670,8 @@
   }
 
   /* ============================================================
-       SELECCIÓN DE FILAS Y DELEGACIÓN EN TBODY
-    ============================================================ */
+             SELECCIÓN DE FILAS Y DELEGACIÓN EN TBODY
+          ============================================================ */
 
   function inicializarEventosTabla() {
     const tbody = document.getElementById("facturasTabla");
@@ -705,8 +793,8 @@
   }
 
   /* ============================================================
-       VALIDACIÓN DEFINITIVA (MODAL)
-    ============================================================ */
+             VALIDACIÓN DEFINITIVA (MODAL)
+          ============================================================ */
 
   function cerrarModalValidar() {
     const modal = document.getElementById("modalValidarFactura");
@@ -880,8 +968,8 @@
     });
   }
   /* ============================================================
-       MODAL IVA
-    ============================================================ */
+             MODAL IVA
+          ============================================================ */
 
   function abrirModalIVA(texto) {
     document.getElementById("iva-textarea").value = texto || "";
@@ -897,8 +985,8 @@
   }
 
   /* ============================================================
-       OVERRIDE FLUJO VALIDACIÓN PARA AÑADIR PASO IVA
-    ============================================================ */
+             OVERRIDE FLUJO VALIDACIÓN PARA AÑADIR PASO IVA
+          ============================================================ */
 
   function inicializarBotonConfirmarValidacion() {
     const btn = document.getElementById("btnConfirmarValidacion");
@@ -960,8 +1048,8 @@
   }
 
   /* ============================================================
-       VALIDAR DESDE MODAL DETALLE
-    ============================================================ */
+             VALIDAR DESDE MODAL DETALLE
+          ============================================================ */
 
   function inicializarValidarDesdeModalDetalle() {
     const btn = document.getElementById("btnValidarModal");
@@ -972,10 +1060,170 @@
       abrirModalValidarDesdeFila(FACTURA_ROW_A_VALIDAR);
     };
   }
+  /* ============================================================
+             MODAL PDF – PREVISUALIZACIÓN CON ANIMACIÓN / ESC / SWIPE
+        ============================================================ */
+
+  let pdfModalAbierto = false;
+  let touchStartY = null;
+  let touchCurrentY = null;
+
+  function abrirPdfModal(url) {
+    const modal = document.getElementById("pdfModal");
+    const frame = document.getElementById("pdfFrame");
+    if (!modal || !frame) return false;
+
+    frame.src = url;
+
+    modal.style.display = "flex";
+    modal.classList.remove("hidden");
+
+    // Pequeño delay para disparar transición
+    requestAnimationFrame(() => {
+      modal.classList.add("show");
+    });
+
+    pdfModalAbierto = true;
+    return false; // IMPORTANTÍSIMO: no navegar
+  }
+
+  function cerrarPdfModal() {
+    const modal = document.getElementById("pdfModal");
+    const frame = document.getElementById("pdfFrame");
+    if (!modal || !frame) return;
+
+    modal.classList.remove("show");
+    pdfModalAbierto = false;
+
+    // Esperar fin de transición para ocultar y limpiar src
+    setTimeout(() => {
+      modal.style.display = "none";
+      modal.classList.add("hidden");
+      frame.src = "";
+    }, 220);
+  }
+
+  // Cerrar al hacer click fuera del cuadro
+  document.addEventListener("click", (e) => {
+    const modal = document.getElementById("pdfModal");
+    if (!modal) return;
+    if (!pdfModalAbierto) return;
+    if (e.target === modal) {
+      cerrarPdfModal();
+    }
+  });
+
+  // Cerrar con tecla ESC
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && pdfModalAbierto) {
+      cerrarPdfModal();
+    }
+  });
+
+  // Swipe en móvil (deslizar hacia abajo para cerrar)
+  const pdfModal = document.getElementById("pdfModal");
+  if (pdfModal) {
+    pdfModal.addEventListener(
+      "touchstart",
+      (e) => {
+        if (!pdfModalAbierto) return;
+        const touch = e.touches[0];
+        touchStartY = touch.clientY;
+        touchCurrentY = touch.clientY;
+      },
+      { passive: true }
+    );
+
+    pdfModal.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!pdfModalAbierto || touchStartY === null) return;
+        const touch = e.touches[0];
+        touchCurrentY = touch.clientY;
+      },
+      { passive: true }
+    );
+  }
+  document.addEventListener("click", async function (e) {
+    const btn = e.target.closest(".btn-generar-pdf");
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    if (!confirm("Se va a generar el PDF. ¿Continuar?")) return;
+
+    const res = await fetch(`/facturas/${id}/generar-pdf`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    const out = await res.json().catch(() => ({}));
+
+    if (!out.ok) {
+      alert(out.error || "No se pudo generar el PDF");
+      return;
+    }
+
+    alert("PDF generado correctamente");
+    window.location.reload();
+  });
+
+  pdfModal.addEventListener(
+    "touchend",
+    () => {
+      if (!pdfModalAbierto || touchStartY === null) return;
+
+      const deltaY = touchCurrentY - touchStartY;
+
+      if (deltaY > 80) cerrarPdfModal();
+
+      touchStartY = null;
+      touchCurrentY = null;
+    },
+    { passive: true }
+  );
+
+  // Confirmación al generar PDF (cuando aún no existe)
+  async function confirmarGenerarPDF(id) {
+    if (
+      !confirm(
+        "No se ha encontrado el PDF para esta factura.\nSe va a generar ahora. ¿Continuar?"
+      )
+    )
+      return false;
+
+    const res = await fetch(`/facturas/${id}/generar-pdf`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    const out = await res.json().catch(() => ({}));
+
+    if (!out.ok) {
+      alert(out.error || "No se pudo generar el PDF");
+      return false;
+    }
+
+    alert("PDF generado correctamente");
+    window.location.reload();
+    return false;
+  }
+
+  document.addEventListener("click", function (e) {
+    const btn = e.target.closest(".btn-ver-pdf");
+    if (!btn) return;
+
+    const url = btn.dataset.pdf;
+    if (!url) {
+      alert("No hay PDF disponible para esta factura.");
+      return;
+    }
+
+    abrirPdfModal(url);
+  });
 
   /* ============================================================
-   INIT
-============================================================ */
+         INIT
+      ============================================================ */
 
   document.addEventListener("DOMContentLoaded", () => {
     inicializarBuscador();
