@@ -16,7 +16,17 @@ from app.services.email_service import send_password_reset_email
 
 router = APIRouter()
 
-APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000")
+APP_URL = os.getenv("APP_URL")
+
+def get_app_url(request: Request):
+    if APP_URL:
+        return APP_URL.rstrip("/")
+
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_proto and forwarded_host:
+        return f"{forwarded_proto}://{forwarded_host}"
+    return str(request.base_url).rstrip("/")
 
 
 # =========================
