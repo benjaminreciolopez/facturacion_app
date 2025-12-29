@@ -72,17 +72,25 @@ def facturas_list(
     # ===============================
     # VERIFICAR PDF EXISTE
     # ===============================
-    for f in facturas:
-        f.verifactu_ok = False   # lo rellenaremos luego vía fiscal
-        f.pdf_existe = False
+    pdf_existencia = {}
+    verifactu_ok = {}
+    enviada_email = {}
 
+    for f in facturas:
+        # VeriFactu (se completará luego realmente tras calcular resumen_fiscal)
+        verifactu_ok[f.id] = False
+
+        # PDF
+        existe = False
         if f.ruta_pdf:
             try:
                 if f.ruta_pdf.startswith("/storage/view?path="):
                     real_path = f.ruta_pdf.replace("/storage/view?path=", "")
-                    f.pdf_existe = Path(real_path).exists()
+                    existe = Path(real_path).exists()
             except:
-                f.pdf_existe = False
+                existe = False
+
+        pdf_existencia[f.id] = existe
 
     # -------------------------------
     # ORDENACIÓN POR NÚMERO
@@ -185,15 +193,19 @@ def facturas_list(
             **c,
         }
 
-        # 🔥 marcar VeriFactu correcto
-        f.verifactu_ok = estado_fiscal == "OK"
+    for f in facturas:
+        fiscal = resumen_fiscal.get(f.id)
+        verifactu_ok[f.id] = fiscal and fiscal["estado"] == "OK"
 
         # 🔥 marcar enviada email
-        f.enviada_email = f.id in enviados
+    enviada_email[f.id] = f.id in enviados
 
     return templates.TemplateResponse(
         "facturas/list.html",
         {
+            "enviada_email": enviada_email,
+            "pdf_existencia": pdf_existencia,
+            "verifactu_ok": verifactu_ok,
             "request": request,
             "facturas": facturas,
             "clientes": clientes,

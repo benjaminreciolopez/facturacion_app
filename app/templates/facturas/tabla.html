@@ -34,12 +34,12 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
     <div class="d-flex flex-column align-items-start gap-1">
       <span class="badge bg-success">Validada</span>
 
-      {# VeriFactu solo si verifactu_ok #} {% if f.verifactu_ok %}
+      {# VeriFactu solo si verifactu_ok #} {% if verifactu_ok.get(f.id) %}
       <span class="text-success small d-inline-flex align-items-center gap-1">
         <span class="verifactu-dot"></span>
         VeriFactu
       </span>
-      {% endif %} {# Enviada por email #} {% if f.enviada_email %}
+      {% endif %} {# Enviada por email #} {% if enviada_email.get(f.id) %}
       <span class="text-primary small d-inline-flex align-items-center gap-1">
         📧 Enviada al cliente
       </span>
@@ -95,7 +95,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       </button>
 
       {# ========================= ESTADO: VALIDADA ==========================#}
-      {% elif f.estado == "VALIDADA" %} {% if f.pdf_existe %}
+      {% elif f.estado == "VALIDADA" %} {% if pdf_existencia.get(f.id) %}
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary btn-ver-pdf"
@@ -133,7 +133,7 @@ aud_total = (aud.ok + aud.bloqueado + aud.error) if aud else 0 %} {% set fiscal
       </button>
       {% endif %} {# =========================
       ESTADO:ANULADA========================== #} {% elif f.estado == "ANULADA"
-      %} {% if f.pdf_existe %}
+      %} {% if pdf_existencia.get(f.id) %}
       <button
         type="button"
         class="btn btn-sm btn-outline-secondary btn-ver-pdf"
